@@ -32,6 +32,8 @@ struct JsonResponse {
 struct JsonTrack {
     #[serde(default)]
     duration: f32,
+    #[serde(default)]
+    album: String,
 }
 
 #[derive(Deserialize)]
@@ -140,6 +142,13 @@ impl LyricsProvider for Lrcmux {
             )));
         }
 
+        if cfg.require_album_match && !track.matches_album(&response.track.album) {
+            return Err(ProviderError::other(format!(
+                "album mismatch: expected '{}', got '{}'",
+                track.album, response.track.album
+            )));
+        }
+
         Ok(pick_lyrics(response, &cfg.lyrics_type_priority))
     }
 }
@@ -240,7 +249,10 @@ mod tests {
 
     fn response(level: SyncLevel, instrumental: bool, lines: Vec<Line>) -> JsonResponse {
         JsonResponse {
-            track: JsonTrack { duration: 180.0 },
+            track: JsonTrack {
+                duration: 180.0,
+                album: String::new(),
+            },
             meta: JsonMeta {
                 level,
                 instrumental,

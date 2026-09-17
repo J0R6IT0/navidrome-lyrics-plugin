@@ -306,9 +306,16 @@ impl LyricsProvider for QQMusic {
             return Err(ProviderError::other("track has no artist"));
         }
 
-        let song = match self.search(track)?.body.item_song.into_iter().find(|song| {
-            track.matches_duration(Duration::from_secs(song.interval), cfg.duration_tolerance)
-        }) {
+        let song = match self
+            .search(track)?
+            .body
+            .item_song
+            .into_iter()
+            .filter(|song| {
+                track.matches_duration(Duration::from_secs(song.interval), cfg.duration_tolerance)
+            })
+            .find(|song| !cfg.require_album_match || track.matches_album(&song.album.name))
+        {
             Some(song) => song,
             None => return Ok(None),
         };

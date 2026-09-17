@@ -3,7 +3,7 @@ use std::time::Duration;
 use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
-    providers::{LyricsProvider, ProviderResult, http::Http},
+    providers::{http::Http, LyricsProvider, ProviderResult},
     types::{Lyrics, LyricsKind},
 };
 use nd_pdk::lyrics::TrackInfo;
@@ -37,18 +37,27 @@ impl Lrclib {
         })
     }
 
-    fn get(&self, track: &TrackInfo) -> ProviderResult<Option<Record>> {
+    fn get(&self, track: &TrackInfo, cfg: &PluginConfig) -> ProviderResult<Option<Record>> {
         let clean_title = track.clean_title();
-        let attempts: [(&str, Option<&str>); 3] = [
-            (&track.title, Some(track.album.as_str())),
-            (&track.title, None),
-            (clean_title.as_str(), None),
-        ];
+        let album = Some(track.album.as_str());
+
+        let mut attempts: Vec<(&str, Option<&str>)> = vec![(&track.title, album)];
+
+        if !cfg.require_album_match {
+            attempts.push((&track.title, None));
+            attempts.push((clean_title.as_str(), None));
+        }
 
         for (title, album) in attempts {
             match self.try_get(track, title, album)? {
-                Some(record) => return Ok(Some(record)),
-                None => continue,
+                Some(record)
+                    if record.duration.is_some_and(|d| {
+                        track.matches_duration(Duration::from_secs_f32(d), cfg.duration_tolerance)
+                    }) =>
+                {
+                    return Ok(Some(record));
+                }
+                _ => continue,
             }
         }
         Ok(None)
@@ -78,16 +87,16 @@ impl Lrclib {
         }
     }
 
-    fn search(&self, track: &TrackInfo) -> ProviderResult<Vec<Record>> {
-        let query = match track.first_artist() {
-            Some(artist) => format!("{} {}", artist, track.clean_title()),
-            None => track.clean_title(),
-        };
+    fn search(&self, track: &TrackInfo, cfg: &PluginConfig) -> ProviderResult<Vec<Record>> {
+        let mut request = Http::get(format!("{}/api/search", self.base_url))
+            .param("track_name", track.clean_title())
+            .param("artist_name", track.first_artist().unwrap_or_default());
 
-        let response = Http::get(format!("{}/api/search", self.base_url))
-            .param("q", query)
-            .send()?;
+        if cfg.require_album_match {
+            request = request.param("album_name", track.album.as_str());
+        }
 
+        let response = request.send()?;
         match response.status {
             200 => response.json("search"),
             429 => Err(response.rate_limited()),
@@ -112,14 +121,17 @@ impl LyricsProvider for Lrclib {
     ) -> ProviderResult<Option<Lyrics>> {
         let preferred = preferred_over_plain(cfg);
 
-        let plain_fallback = match self.get(track)?.and_then(|record| pick_text(record, cfg)) {
+        let plain_fallback = match self
+            .get(track, cfg)?
+            .and_then(|record| pick_text(record, cfg))
+        {
             Some(plain @ Lyrics::Plain(_)) if !preferred.is_empty() => Some(plain),
             Some(lyrics) => return Ok(Some(lyrics)),
             None => None,
         };
 
         let found = self
-            .search(track)?
+            .search(track, cfg)?
             .into_iter()
             .filter(|record| {
                 record.duration.is_some_and(|d| {

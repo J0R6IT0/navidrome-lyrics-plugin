@@ -50,6 +50,7 @@ pub struct PluginConfig {
     pub strip_section_labels: bool,
     pub instrumental_text: Option<String>,
     pub duration_tolerance: Duration,
+    pub require_album_match: bool,
 }
 
 impl Default for PluginConfig {
@@ -75,6 +76,7 @@ impl Default for PluginConfig {
             strip_section_labels: false,
             instrumental_text: Some(DEFAULT_INSTRUMENTAL_TEXT.to_string()),
             duration_tolerance: DEFAULT_DURATION_TOLERANCE,
+            require_album_match: false,
         }
     }
 }
@@ -116,6 +118,7 @@ impl PluginConfig {
             strip_section_labels: get_bool("stripSectionLabels", false)?,
             instrumental_text: resolve_instrumental_text()?,
             duration_tolerance: resolve_duration_tolerance()?,
+            require_album_match: get_bool("requireAlbumMatch", false)?,
         })
     }
 

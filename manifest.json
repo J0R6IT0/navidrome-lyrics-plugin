@@ -58,7 +58,7 @@
 
         "providersList": {
           "type": "array",
-          "title": "Lyrics providers",
+          "title": "Lyrics providers (use the \"+\" button to add more)",
           "default": [{ "provider": "lrclib" }, { "provider": "lyrics.ovh" }],
           "items": {
             "type": "object",

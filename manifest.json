@@ -363,15 +363,15 @@
             },
             {
               "type": "Control",
-              "scope": "#/properties/requireAlbumMatch"
-            },
-            {
-              "type": "Control",
               "scope": "#/properties/instrumentalText"
             },
             {
               "type": "Control",
               "scope": "#/properties/stripSectionLabels"
+            },
+            {
+              "type": "Control",
+              "scope": "#/properties/requireAlbumMatch"
             }
           ]
         },

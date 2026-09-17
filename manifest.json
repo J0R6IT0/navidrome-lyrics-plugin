@@ -1,7 +1,7 @@
 {
   "name": "Lyrics",
   "author": "Jorge Pardo",
-  "version": "8.0.0",
+  "version": "8.1.0",
   "description": "Fetch lyrics from multiple sources",
   "website": "https://github.com/J0R6IT0/navidrome-lyrics-plugin",
 
@@ -56,9 +56,15 @@
           "description": "Maximum allowed difference between the track's duration and a provider result's duration. Increasing this may return less accurate results."
         },
 
+        "requireAlbumMatch": {
+          "type": "boolean",
+          "title": "Require album match (the track and provider result must have matching albums. Improves accuracy but may reduce matches)",
+          "default": false
+        },
+
         "providersList": {
           "type": "array",
-          "title": "Lyrics providers",
+          "title": "Lyrics providers (use the \"+\" button to add more)",
           "default": [{ "provider": "lrclib" }, { "provider": "lyrics.ovh" }],
           "items": {
             "type": "object",
@@ -76,7 +82,8 @@
                   { "const": "qqmusic", "title": "QQ Music" },
                   { "const": "applemusic", "title": "Apple Music" },
                   { "const": "stixoi", "title": "stixoi.info" },
-                  { "const": "genie", "title": "Genie Music" }
+                  { "const": "genie", "title": "Genie Music" },
+                  { "const": "binilyrics", "title": "BiniLyrics" }
                 ]
               },
               "baseUrl": {
@@ -362,6 +369,10 @@
             {
               "type": "Control",
               "scope": "#/properties/stripSectionLabels"
+            },
+            {
+              "type": "Control",
+              "scope": "#/properties/requireAlbumMatch"
             }
           ]
         },

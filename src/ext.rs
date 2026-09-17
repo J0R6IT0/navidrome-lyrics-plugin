@@ -57,6 +57,9 @@ const SAFE_EDITION_TERMS: &[&str] = &[
     "legacy",
     "platinum",
     "gold",
+    "single",
+    "ep",
+    "album",
     "黑胶版", // "vinyl edition", seen from chinese providers
 ];
 
@@ -288,11 +291,11 @@ fn albums_match(mine: &str, other: &str) -> bool {
 
     let mine_words: Vec<&str> = mine_tokens
         .into_iter()
-        .filter(|w| !is_numeric_token(w))
+        .filter(|w| !is_numeric_token(w) && !SAFE_EDITION_TERMS.contains(w))
         .collect();
     let other_words: Vec<&str> = other_tokens
         .into_iter()
-        .filter(|w| !is_numeric_token(w))
+        .filter(|w| !is_numeric_token(w) && !SAFE_EDITION_TERMS.contains(w))
         .collect();
 
     let (smaller, larger) = if mine_words.len() <= other_words.len() {
@@ -416,6 +419,8 @@ mod tests {
         check_album_match("Nevermind", "Nevermind (Super Deluxe Edition)", true);
         check_album_match("Metallica", "Metallica (Deluxe Box Set)", true);
         check_album_match("Fearless", "Fearless (Platinum Edition)", true);
+        check_album_match("Paradise", "Paradise - Single", true);
+        check_album_match("Some Title", "Some Title - EP", true);
     }
 
     #[test]

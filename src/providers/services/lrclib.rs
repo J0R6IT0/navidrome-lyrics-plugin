@@ -1,13 +1,12 @@
-use std::time::Duration;
-
 use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
-    providers::{http::Http, LyricsProvider, ProviderResult},
+    providers::{LyricsProvider, ProviderResult, http::Http},
     types::{Lyrics, LyricsKind},
 };
 use nd_pdk::lyrics::TrackInfo;
 use serde::Deserialize;
+use std::time::Duration;
 
 const DEFAULT_BASE_URL: &str = "https://lrclib.net";
 

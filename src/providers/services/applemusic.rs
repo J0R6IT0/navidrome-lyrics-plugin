@@ -79,6 +79,8 @@ struct Song {
 struct SongAttributes {
     duration_in_millis: Option<u64>,
     has_lyrics: Option<bool>,
+    #[serde(default)]
+    album_name: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -297,6 +299,9 @@ impl LyricsProvider for AppleMusic {
                     s.attributes.duration_in_millis.is_some_and(|d| {
                         track.matches_duration(Duration::from_millis(d), cfg.duration_tolerance)
                     })
+                })
+                .filter(|s| {
+                    !cfg.require_album_match || track.matches_album(&s.attributes.album_name)
                 })
                 .min_by_key(|s| duration_diff(s, track.duration()));
 

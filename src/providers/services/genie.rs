@@ -16,6 +16,7 @@ const MAX_PROBE: usize = 5;
 
 struct Candidate {
     id: String,
+    album: String,
 }
 
 pub struct Genie;
@@ -90,6 +91,10 @@ impl LyricsProvider for Genie {
         let query = format!("{title} {artist}");
 
         for candidate in self.search(&query)?.into_iter().take(MAX_PROBE) {
+            if cfg.require_album_match && !track.matches_album(&candidate.album) {
+                continue;
+            }
+
             let Some(duration) = self.duration(&candidate.id)? else {
                 continue;
             };
@@ -110,15 +115,22 @@ impl LyricsProvider for Genie {
 }
 
 fn parse_candidates(body: &str) -> ProviderResult<Vec<Candidate>> {
-    let row_re = Regex::new(r#"(?s)<tr class="list"\s*songid="(\d+)">"#)
+    let row_re = Regex::new(r#"(?s)<tr class="list"\s*songid="(\d+)">(.*?)</tr>"#)
         .map_err(|e| ProviderError::other(format!("invalid row regex: {e}")))?;
+    let album_re = Regex::new(r#"class="albumtitle ellipsis"[^>]*>\s*([^<]+?)\s*<"#)
+        .map_err(|e| ProviderError::other(format!("invalid album regex: {e}")))?;
 
     Ok(row_re
         .captures_iter(body)
         .filter_map(|cap| {
-            Some(Candidate {
-                id: cap.get(1)?.as_str().to_string(),
-            })
+            let id = cap.get(1)?.as_str().to_string();
+            let album = album_re
+                .captures(cap.get(2)?.as_str())
+                .and_then(|c| c.get(1))
+                .map(|m| m.as_str().to_string())
+                .unwrap_or_default();
+
+            Some(Candidate { id, album })
         })
         .collect())
 }
@@ -173,6 +185,16 @@ mod tests {
     }
 
     #[track_caller]
+    fn check_albums(body: &str, expected: &[&str]) {
+        let albums: Vec<String> = parse_candidates(body)
+            .unwrap()
+            .into_iter()
+            .map(|c| c.album)
+            .collect();
+        assert_eq!(albums, expected);
+    }
+
+    #[track_caller]
     fn check_duration(body: &str, expected: Option<Duration>) {
         assert_eq!(parse_duration(body), expected);
     }
@@ -192,6 +214,32 @@ mod tests {
             &["99570005", "12345678"],
         );
         check_candidates("<html></html>", &[]);
+    }
+
+    #[test]
+    fn the_album_title_is_parsed_from_each_row() {
+        check_albums(
+            r##"
+                <tr class="list"  songid="16480934">
+                    <a href="#" class="artist ellipsis" onclick="fnViewArtist('14947246');return false;">
+                        Bruce Springsteen
+                    </a>
+                    <i class="bar">|</i>
+                    <a href="#" class="albumtitle ellipsis" onclick="fnViewAlbumLayer('15050884');return false;">
+
+
+                        Born To Run
+
+                    </a>
+                </tr>
+            "##,
+            &["Born To Run"],
+        );
+    }
+
+    #[test]
+    fn a_row_without_an_album_title_gets_an_empty_string() {
+        check_albums(r#"<tr class="list"  songid="99570005">...</tr>"#, &[""]);
     }
 
     #[test]

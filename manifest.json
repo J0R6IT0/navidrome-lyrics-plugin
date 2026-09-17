@@ -56,6 +56,12 @@
           "description": "Maximum allowed difference between the track's duration and a provider result's duration. Increasing this may return less accurate results."
         },
 
+        "requireAlbumMatch": {
+          "type": "boolean",
+          "title": "Require album match (the track and provider result must have matching albums. Improves accuracy but may reduce matches)",
+          "default": false
+        },
+
         "providersList": {
           "type": "array",
           "title": "Lyrics providers (use the \"+\" button to add more)",
@@ -362,6 +368,10 @@
             {
               "type": "Control",
               "scope": "#/properties/stripSectionLabels"
+            },
+            {
+              "type": "Control",
+              "scope": "#/properties/requireAlbumMatch"
             }
           ]
         },

@@ -34,6 +34,8 @@ struct SongInfo {
     hash: String,
     duration: Option<u64>,
     trans_param: Option<TransParam>,
+    #[serde(default)]
+    album_name: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -156,11 +158,13 @@ impl LyricsProvider for KuGou {
             .data
             .info
             .into_iter()
-            .find(|record| {
+            .filter(|record| {
                 record.duration.is_some_and(|d| {
                     track.matches_duration(Duration::from_secs(d), cfg.duration_tolerance)
                 })
-            }) {
+            })
+            .find(|record| !cfg.require_album_match || track.matches_album(&record.album_name))
+        {
             Some(song) => song,
             None => return Ok(None),
         };

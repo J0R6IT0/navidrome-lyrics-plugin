@@ -32,6 +32,14 @@ struct Song {
     id: u64,
     #[serde(rename = "duration")]
     duration_ms: Option<u64>,
+    #[serde(default)]
+    album: Album,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct Album {
+    #[serde(default)]
+    name: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -124,11 +132,18 @@ impl LyricsProvider for NetEase {
             return Err(ProviderError::other("track has no artist"));
         }
 
-        let song = match self.search(track)?.result.songs.into_iter().find(|record| {
-            record.duration_ms.is_some_and(|d| {
-                track.matches_duration(Duration::from_millis(d), cfg.duration_tolerance)
+        let song = match self
+            .search(track)?
+            .result
+            .songs
+            .into_iter()
+            .filter(|record| {
+                record.duration_ms.is_some_and(|d| {
+                    track.matches_duration(Duration::from_millis(d), cfg.duration_tolerance)
+                })
             })
-        }) {
+            .find(|record| !cfg.require_album_match || track.matches_album(&record.album.name))
+        {
             Some(song) => song,
             None => return Ok(None),
         };

@@ -52,6 +52,7 @@ Some of the providers don't host lyrics themselves, they pull them from other we
 | Apple Music |                                                                       | ttml                 | Supports translations and romanization. Requires active subscription |
 | stixoi.info |                                                                       | plain                | Greek lyrics                                                         |
 | Genie Music |                                                                       | lrc                  | Korean lyrics                                                        |
+| BiniLyrics  |                                                                       | ttml                 |                                                                      |
 
 ## Provider modes
 

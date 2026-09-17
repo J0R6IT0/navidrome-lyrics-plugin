@@ -408,7 +408,7 @@ mod tests {
     }
 
     #[test]
-    fn edition_and_remaster_annotations_are_ignored() {
+    fn edition_annotations_are_ignored() {
         check_album_match(
             "Born to Run",
             "Born to Run (30th Anniversary Edition)",

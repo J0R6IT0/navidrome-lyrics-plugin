@@ -51,7 +51,8 @@ impl Lrclib {
             match self.try_get(track, title, album)? {
                 Some(record)
                     if record.duration.is_some_and(|d| {
-                        track.matches_duration(Duration::from_secs_f32(d), cfg.duration_tolerance)
+                        Duration::try_from_secs_f32(d)
+                            .is_ok_and(|d| track.matches_duration(d, cfg.duration_tolerance))
                     }) =>
                 {
                     return Ok(Some(record));
@@ -134,7 +135,8 @@ impl LyricsProvider for Lrclib {
             .into_iter()
             .filter(|record| {
                 record.duration.is_some_and(|d| {
-                    track.matches_duration(Duration::from_secs_f32(d), cfg.duration_tolerance)
+                    Duration::try_from_secs_f32(d)
+                        .is_ok_and(|d| track.matches_duration(d, cfg.duration_tolerance))
                 })
             })
             .find_map(|record| match plain_fallback {

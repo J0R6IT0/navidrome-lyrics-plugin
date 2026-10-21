@@ -130,10 +130,9 @@ impl LyricsProvider for Lrcmux {
             return Ok(None);
         };
 
-        if !track.matches_duration(
-            Duration::from_secs_f32(response.track.duration),
-            cfg.duration_tolerance,
-        ) {
+        if !Duration::try_from_secs_f32(response.track.duration)
+            .is_ok_and(|d| track.matches_duration(d, cfg.duration_tolerance))
+        {
             return Err(ProviderError::other(format!(
                 "duration mismatch: expected {}s ±{}s, got {}s",
                 track.duration().as_secs(),

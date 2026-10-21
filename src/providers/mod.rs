@@ -3,8 +3,8 @@ use crate::{
     providers::{
         error::ProviderResult,
         services::{
-            AppleMusic, BiniLyrics, Genie, KuGou, Lrclib, Lrcmux, LyricsOvh, NetEase, QQMusic,
-            Stixoi,
+            AppleMusic, BiniLyrics, Genie, KuGou, LrcRed, Lrclib, Lrcmux, LyricsOvh, NetEase,
+            QQMusic, Stixoi,
         },
     },
     types::{Lyrics, LyricsKind},
@@ -38,6 +38,7 @@ pub fn register_providers(registry: &mut ProviderRegistry) {
     registry.register("stixoi", Stixoi::create);
     registry.register("genie", Genie::create);
     registry.register("binilyrics", BiniLyrics::create);
+    registry.register("lrc.red", LrcRed::create);
 }
 
 pub trait LyricsProvider {

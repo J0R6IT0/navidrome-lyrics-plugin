@@ -41,18 +41,19 @@ At this time, the following providers are available. Please report any issues yo
 
 Some of the providers don't host lyrics themselves, they pull them from other websites. Those are indicated in the `Sources` column.
 
-| Provider    | Sources                                                               | Type                 | Notes                                                                |
-| ----------- | --------------------------------------------------------------------- | -------------------- | -------------------------------------------------------------------- |
-| LRCLIB      |                                                                       | plain,lrc,lyricsfile | Supports custom instances                                            |
-| lyrics.ovh  | Genius, AZLyrics, Paroles.net, LyricsMania, Letras.mus.br, Lyrics.com | plain                | Supports custom instances                                            |
-| lrcmux      | Genius, KuGou, Musixmatch, LRCLIB, NetEase, YouTube Music             | plain,lrc,elrc       | Supports custom instances                                            |
-| KuGou       |                                                                       | lrc,elrc             |                                                                      |
-| NetEase     |                                                                       | lrc,elrc             |                                                                      |
-| QQ Music    |                                                                       | lrc,elrc             |                                                                      |
-| Apple Music |                                                                       | ttml                 | Supports translations and romanization. Requires active subscription |
-| stixoi.info |                                                                       | plain                | Greek lyrics                                                         |
-| Genie Music |                                                                       | lrc                  | Korean lyrics                                                        |
-| BiniLyrics  |                                                                       | ttml                 |                                                                      |
+| Provider                                 | Sources                                                               | Type                 | Notes                                                                |
+| ---------------------------------------- | --------------------------------------------------------------------- | -------------------- | -------------------------------------------------------------------- |
+| [LRCLIB](https://lrclib.net)             |                                                                       | plain,lrc,lyricsfile | Supports custom instances                                            |
+| [lyrics.ovh](https://lyrics.ovh)         | Genius, AZLyrics, Paroles.net, LyricsMania, Letras.mus.br, Lyrics.com | plain                | Supports custom instances                                            |
+| [lrcmux](https://lrcmux.dev)             | Genius, KuGou, Musixmatch, LRCLIB, NetEase, YouTube Music             | plain,lrc,elrc       | Supports custom instances                                            |
+| [lrc.red](https://lrc.red)               |                                                                       | ttml,lrc,lyricsfile  |                                                                      |
+| [BiniLyrics](https://lyrics.binimum.org) | lrc.red                                                               | ttml                 | API redirects to lrc.red as of October 2026                          |
+| KuGou                                    |                                                                       | lrc,elrc             |                                                                      |
+| NetEase                                  |                                                                       | lrc,elrc             |                                                                      |
+| QQ Music                                 |                                                                       | lrc,elrc             |                                                                      |
+| Apple Music                              |                                                                       | ttml                 | Supports translations and romanization. Requires active subscription |
+| stixoi.info                              |                                                                       | plain                | Greek lyrics                                                         |
+| Genie Music                              |                                                                       | lrc                  | Korean lyrics                                                        |
 
 ## Provider modes
 

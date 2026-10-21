@@ -217,8 +217,10 @@ fn resolve_duration_tolerance() -> Result<Duration> {
         DEFAULT_DURATION_TOLERANCE.as_secs_f64(),
     )?;
 
-    let duration =
-        Duration::from_secs_f64(raw).clamp(MIN_DURATION_TOLERANCE, MAX_DURATION_TOLERANCE);
+    let duration = Duration::from_secs_f64(raw.clamp(
+        MIN_DURATION_TOLERANCE.as_secs_f64(),
+        MAX_DURATION_TOLERANCE.as_secs_f64(),
+    ));
 
     if duration.as_secs_f64() != raw {
         warn!("durationToleranceSeconds {raw} is out of range, clamping to {duration:?}");

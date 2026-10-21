@@ -83,7 +83,8 @@
                   { "const": "applemusic", "title": "Apple Music" },
                   { "const": "stixoi", "title": "stixoi.info" },
                   { "const": "genie", "title": "Genie Music" },
-                  { "const": "binilyrics", "title": "BiniLyrics" }
+                  { "const": "binilyrics", "title": "BiniLyrics" },
+                  { "const": "lrc.red", "title": "lrc.red" }
                 ]
               },
               "baseUrl": {

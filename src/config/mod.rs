@@ -151,6 +151,11 @@ impl PluginConfig {
     }
 }
 
+/// Read on its own to avoid loading the whole config on every playback event.
+pub fn fetch_on_play() -> Result<bool> {
+    get_bool("fetchOnPlay", false)
+}
+
 fn resolve_instrumental_text() -> Result<Option<String>> {
     Ok(match get_raw_string("instrumentalText")? {
         Some(text) if text.trim().is_empty() => None,

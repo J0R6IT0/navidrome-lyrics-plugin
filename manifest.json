@@ -20,6 +20,16 @@
     "kvstore": {
       "reason": "To cache lyrics persistently across restarts.",
       "maxSize": "1000MB"
+    },
+    "users": {
+      "reason": "To fetch lyrics for the songs played by the selected users. Only used when fetch on play is enabled."
+    },
+    "subsonicapi": {
+      "reason": "To request lyrics through Navidrome when a song starts playing."
+    },
+    "taskqueue": {
+      "reason": "To fetch lyrics for played songs in the background.",
+      "maxConcurrency": 1
     }
   },
 
@@ -59,6 +69,12 @@
         "requireAlbumMatch": {
           "type": "boolean",
           "title": "Require album match (the track and provider result must have matching albums. Improves accuracy but may reduce matches)",
+          "default": false
+        },
+
+        "fetchOnPlay": {
+          "type": "boolean",
+          "title": "Fetch lyrics when a song starts playing",
           "default": false
         },
 
@@ -374,6 +390,21 @@
             {
               "type": "Control",
               "scope": "#/properties/requireAlbumMatch"
+            }
+          ]
+        },
+
+        {
+          "type": "Group",
+          "label": "Fetch on play",
+          "elements": [
+            {
+              "type": "Label",
+              "text": "Fetch lyrics for every song that starts playing, not only when a client requests them. Lyrics are requested through Navidrome, so the LyricsPriority order is respected. Only playback from the users selected in this plugin's settings is used."
+            },
+            {
+              "type": "Control",
+              "scope": "#/properties/fetchOnPlay"
             }
           ]
         },

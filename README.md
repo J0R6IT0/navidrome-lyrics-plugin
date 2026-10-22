@@ -33,7 +33,7 @@ Make sure your Navidrome version is at least `v0.63.0`.
 
 3. You may need to restart Navidrome for the plugin to be detected. Don't forget to enable the plugin and configure it to your liking.
 
-4. The plugin will fetch lyrics only when a client requests them.
+4. By default, the plugin will fetch lyrics only when a client requests them.
 
 ## Providers
 

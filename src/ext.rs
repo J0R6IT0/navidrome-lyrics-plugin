@@ -65,6 +65,15 @@ const SAFE_EDITION_TERMS: &[&str] = &[
 
 const ALBUM_MATCH_THRESHOLD: f64 = 0.8;
 
+pub fn track_label(id: &str, artist: &str, title: &str) -> String {
+    match (artist.trim(), title.trim()) {
+        ("", "") => id.to_string(),
+        ("", title) => title.to_string(),
+        (artist, "") => artist.to_string(),
+        (artist, title) => format!("{artist} - {title}"),
+    }
+}
+
 pub trait TrackInfoExt {
     fn label(&self) -> String;
     fn has_artist(&self) -> bool;
@@ -78,12 +87,7 @@ pub trait TrackInfoExt {
 
 impl TrackInfoExt for TrackInfo {
     fn label(&self) -> String {
-        match (self.artist.trim(), self.title.trim()) {
-            ("", "") => self.id.clone(),
-            ("", title) => title.to_string(),
-            (artist, "") => artist.to_string(),
-            (artist, title) => format!("{artist} - {title}"),
-        }
+        track_label(&self.id, &self.artist, &self.title)
     }
 
     fn has_artist(&self) -> bool {

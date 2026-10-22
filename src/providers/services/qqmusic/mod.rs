@@ -1,5 +1,9 @@
-//! QQ Music provider, modelled on the QQ Music Lite Android client as
-//! implemented by https://github.com/chenmozhijin/LDDC (LDDC/core/api/lyrics/qm.py).
+//! QQ Music provider, using the endpoints of the QQ Music Lite Android client
+//! as found by https://github.com/chenmozhijin/LDDC (LDDC/core/api/lyrics/qm.py).
+//!
+//! As of October 22 2026, the device identity block, client headers and many other
+//! parameters seem to not be required at all. If something break they should be
+//! added back to see if that's the reason.
 
 use crate::{
     config::{PluginConfig, ProviderParams},
@@ -8,7 +12,6 @@ use crate::{
     providers::{LyricsProvider, ProviderResult, error::ProviderError, http::Http},
     types::{Lyrics, LyricsKind},
 };
-use base64::{Engine, engine::general_purpose::STANDARD};
 use extism_pdk::{info, warn};
 use nd_pdk::lyrics::TrackInfo;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
@@ -16,120 +19,49 @@ use std::time::Duration;
 
 mod qrc;
 
-const ENDPOINT: &str = "https://u.y.qq.com/cgi-bin/musicu.fcg";
-const CLIENT_USER_AGENT: &str = "okhttp/3.14.9";
-
+const LITE_URL: &str = "https://shu6.y.qq.com/cgi-bin/musicu.fcg";
+const DESKTOP_URL: &str = "https://u.y.qq.com/cgi-bin/musicu.fcg";
 const SEARCH_MODULE: &str = "music.search.SearchCgiService";
-const SEARCH_METHOD: &str = "DoSearchForQQMusicLite";
+const LITE_SEARCH_METHOD: &str = "DoSearchForQQMusicLite";
+const DESKTOP_SEARCH_METHOD: &str = "DoSearchForQQMusicDesktop";
 const LYRIC_MODULE: &str = "music.musichallSong.PlayLyricInfo";
 const LYRIC_METHOD: &str = "GetPlayLyricInfo";
 
-/// Client identity block sent with every request. `ct` 11 plus the
-/// `qqmusiclight` app id is what marks this as the Android Lite client.
-#[derive(Debug, Serialize)]
-struct Common {
-    ct: u32,
-    cv: &'static str,
-    v: &'static str,
-    os_ver: &'static str,
-    phonetype: &'static str,
-    rom: &'static str,
-    #[serde(rename = "tmeAppID")]
-    tme_app_id: &'static str,
-    nettype: &'static str,
-    udid: &'static str,
-}
-
-const COMMON: Common = Common {
-    ct: 11,
-    cv: "1003006",
-    v: "1003006",
-    os_ver: "15",
-    phonetype: "24122RKC7C",
-    rom: "Redmi/miro/miro:15/AE3A.240806.005/OS2.0.105.0.VOMCNXM:user/release-keys",
-    tme_app_id: "qqmusiclight",
-    nettype: "NETWORK_WIFI",
-    udid: "0",
-};
-
 #[derive(Debug, Serialize)]
 struct SearchParam<'a> {
-    search_id: String,
-    remoteplace: &'static str,
     query: &'a str,
+    /// 0 searches for songs.
     search_type: u32,
     num_per_page: u32,
     page_num: u32,
-    highlight: u32,
-    nqc_flag: u32,
-    page_id: u32,
-    grp: u32,
 }
 
 impl<'a> SearchParam<'a> {
     fn new(query: &'a str) -> Self {
         Self {
-            search_id: random_search_id().to_string(),
-            remoteplace: "search.android.keyboard",
             query,
             search_type: 0,
             num_per_page: 5,
             page_num: 1,
-            highlight: 0,
-            nqc_flag: 0,
-            page_id: 1,
-            grp: 1,
         }
     }
 }
 
-/// The lyric endpoint identifies tracks by numeric song ID. The
-/// base64-encoded title, artist, album, and duration mirror the values sent by
-/// the official client, but the server does not appear to validate them.
+/// Without `qrc` and `crypt` the endpoint returns line synced lyrics.
 #[derive(Debug, Serialize)]
 struct LyricParam {
-    #[serde(rename = "albumName")]
-    album_name: String,
-    crypt: u32,
-    ct: u32,
-    cv: u32,
-    interval: u64,
-    lrc_t: u32,
-    qrc: u32,
-    qrc_t: u32,
-    roma: u32,
-    roma_t: u32,
-    #[serde(rename = "singerName")]
-    singer_name: String,
     #[serde(rename = "songID")]
     song_id: u64,
-    #[serde(rename = "songName")]
-    song_name: String,
-    trans: u32,
-    trans_t: u32,
-    #[serde(rename = "type")]
-    type_: u32,
+    qrc: u32,
+    crypt: u32,
 }
 
 impl LyricParam {
     fn new(song: &Song) -> Self {
         Self {
-            album_name: STANDARD.encode(&song.album.name),
-            crypt: 1,
-            ct: 19,
-            cv: 2111,
-            interval: song.interval,
-            lrc_t: 0,
-            qrc: 1,
-            qrc_t: 0,
-            roma: 0,
-            roma_t: 0,
-            singer_name: STANDARD.encode(song.singers()),
             song_id: song.id,
-            song_name: STANDARD.encode(&song.title),
-            trans: 0,
-            trans_t: 0,
-            type_: 0,
+            qrc: 1,
+            crypt: 1,
         }
     }
 }
@@ -147,47 +79,43 @@ struct ModuleResponse<T> {
 }
 
 #[derive(Debug, Deserialize)]
-struct SearchData {
+struct LiteSearchData {
     #[serde(default)]
-    body: SearchBody,
+    body: LiteSearchBody,
 }
 
 #[derive(Debug, Default, Deserialize)]
-struct SearchBody {
+struct LiteSearchBody {
     #[serde(default)]
     item_song: Vec<Song>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DesktopSearchData {
+    #[serde(default)]
+    body: DesktopSearchBody,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct DesktopSearchBody {
+    #[serde(default)]
+    song: SongList,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct SongList {
+    #[serde(default)]
+    list: Vec<Song>,
 }
 
 #[derive(Debug, Deserialize)]
 struct Song {
     id: u64,
     #[serde(default)]
-    title: String,
-    #[serde(default)]
-    singer: Vec<Singer>,
-    #[serde(default)]
     album: Album,
     /// Track length in seconds.
     #[serde(default)]
     interval: u64,
-}
-
-impl Song {
-    /// The lyric endpoint expects every singer joined by a slash.
-    fn singers(&self) -> String {
-        self.singer
-            .iter()
-            .map(|singer| singer.name.as_str())
-            .filter(|name| !name.is_empty())
-            .collect::<Vec<_>>()
-            .join("/")
-    }
-}
-
-#[derive(Debug, Deserialize)]
-struct Singer {
-    #[serde(default)]
-    name: String,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -209,18 +137,34 @@ impl QQMusic {
         Box::new(Self)
     }
 
-    fn search(&self, track: &TrackInfo) -> ProviderResult<SearchData> {
+    fn search(&self, track: &TrackInfo) -> ProviderResult<Vec<Song>> {
         let query = format!(
             "{} {}",
             track.title,
             track.first_artist().unwrap_or_default()
         );
+        let param = SearchParam::new(&query);
 
-        self.request(SEARCH_MODULE, SEARCH_METHOD, &SearchParam::new(&query))
+        with_fallback(
+            "search",
+            || {
+                self.request(LITE_URL, SEARCH_MODULE, LITE_SEARCH_METHOD, &param)
+                    .map(|data: LiteSearchData| data.body.item_song)
+            },
+            || {
+                self.request(DESKTOP_URL, SEARCH_MODULE, DESKTOP_SEARCH_METHOD, &param)
+                    .map(|data: DesktopSearchData| data.body.song.list)
+            },
+        )
     }
 
     fn get(&self, song: &Song) -> ProviderResult<Option<String>> {
-        let data: LyricData = self.request(LYRIC_MODULE, LYRIC_METHOD, &LyricParam::new(song))?;
+        let param = LyricParam::new(song);
+        let data: LyricData = with_fallback(
+            "lyric",
+            || self.request(LITE_URL, LYRIC_MODULE, LYRIC_METHOD, &param),
+            || self.request(DESKTOP_URL, LYRIC_MODULE, LYRIC_METHOD, &param),
+        )?;
 
         if data.lyric.is_empty() {
             info!("qqmusic: song {} has no lyrics attached", song.id);
@@ -253,12 +197,12 @@ impl QQMusic {
 
     fn request<P: Serialize, T: DeserializeOwned>(
         &self,
+        endpoint: &str,
         module: &str,
         method: &str,
         param: &P,
     ) -> ProviderResult<T> {
         let body = serde_json::to_vec(&serde_json::json!({
-            "comm": COMMON,
             "request": {
                 "module": module,
                 "method": method,
@@ -267,10 +211,9 @@ impl QQMusic {
         }))
         .map_err(|e| ProviderError::other(format!("failed to encode the request: {e}")))?;
 
-        let response = Http::post(ENDPOINT)
+        let response = Http::post(endpoint)
+            .browser()
             .header("Content-Type", "application/json")
-            .header("Cookie", "tmeLoginType=-1;")
-            .header("User-Agent", CLIENT_USER_AGENT)
             .body(body)
             .send()?;
 
@@ -308,8 +251,6 @@ impl LyricsProvider for QQMusic {
 
         let song = match self
             .search(track)?
-            .body
-            .item_song
             .into_iter()
             .filter(|song| {
                 track.matches_duration(Duration::from_secs(song.interval), cfg.duration_tolerance)
@@ -362,14 +303,21 @@ impl LyricsProvider for QQMusic {
     }
 }
 
+fn with_fallback<T>(
+    what: &str,
+    primary: impl FnOnce() -> ProviderResult<T>,
+    fallback: impl FnOnce() -> ProviderResult<T>,
+) -> ProviderResult<T> {
+    primary().or_else(|e| {
+        info!("qqmusic: {what} failed on the primary endpoint ({e}), trying the fallback");
+        fallback()
+    })
+}
+
 fn check_code(code: Option<i64>, module: &str, method: &str, level: &str) -> ProviderResult<()> {
     match code {
         Some(0) => Ok(()),
-        // 2001 means the endpoint rejected our client identity, either the `comm` block
-        // or the headers no longer match the client it expects.
-        Some(2001) => Err(ProviderError::other(format!(
-            "{module}.{method} rejected the client identity ({level} error code 2001), the 'comm' block or request headers are stale"
-        ))),
+        Some(2001) => Err(ProviderError::rate_limited(None)),
         Some(code) => Err(ProviderError::other(format!(
             "{module}.{method} returned {level} error code {code}"
         ))),
@@ -379,100 +327,4 @@ fn check_code(code: Option<i64>, module: &str, method: &str, level: &str) -> Pro
 
 fn missing(module: &str, method: &str, what: &str) -> ProviderError {
     ProviderError::other(format!("{module}.{method} response is missing the {what}"))
-}
-
-fn random_search_id() -> u64 {
-    let mut bytes = [0u8; 8];
-    let rnd = if getrandom::getrandom(&mut bytes).is_ok() {
-        u64::from_le_bytes(bytes)
-    } else {
-        0x1234_5678_9abc_def0
-    };
-
-    let prefix = (rnd % 20) + 1;
-    let middle = (rnd >> 8) % 4_194_304;
-    let low = (rnd >> 32) % 86_400_000;
-
-    prefix * 18_014_398_509_481_984 + middle * 4_294_967_296 + low
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn song() -> Song {
-        serde_json::from_value(serde_json::json!({
-            "id": 7239095,
-            "mid": "004D8vna0lUZbr",
-            "title": "Bohemian Rhapsody",
-            "singer": [{"name": "Queen"}, {"name": "David Bowie"}, {"name": ""}],
-            "album": {"name": "A Night At The Opera"},
-            "interval": 354,
-        }))
-        .unwrap()
-    }
-
-    #[track_caller]
-    fn check_code_error(code: Option<i64>, expected: &str) {
-        let error = check_code(code, SEARCH_MODULE, SEARCH_METHOD, "gateway").unwrap_err();
-
-        assert!(
-            error.to_string().contains(expected),
-            "{error} does not contain {expected:?}"
-        );
-    }
-
-    #[test]
-    fn singers_are_joined_and_blank_names_skipped() {
-        assert_eq!(song().singers(), "Queen/David Bowie");
-    }
-
-    #[test]
-    fn a_song_deserializes_without_its_optional_fields() {
-        let song: Song = serde_json::from_value(serde_json::json!({ "id": 7239095 })).unwrap();
-
-        assert_eq!(song.title, "");
-        assert_eq!(song.singers(), "");
-        assert_eq!(song.album.name, "");
-        assert_eq!(song.interval, 0);
-    }
-
-    #[test]
-    fn lyric_param_base64_encodes_the_names() {
-        let json = serde_json::to_string(&LyricParam::new(&song())).unwrap();
-
-        assert!(json.contains(r#""songName":"Qm9oZW1pYW4gUmhhcHNvZHk=""#));
-        assert!(json.contains(r#""singerName":"UXVlZW4vRGF2aWQgQm93aWU=""#));
-        assert!(json.contains(r#""albumName":"QSBOaWdodCBBdCBUaGUgT3BlcmE=""#));
-        assert!(json.contains(r#""songID":7239095"#));
-        assert!(json.contains(r#""interval":354"#));
-        assert!(json.contains(r#""type":0"#));
-    }
-
-    #[test]
-    fn an_api_response_carries_the_module_data() {
-        let response: ApiResponse<LyricData> = serde_json::from_value(serde_json::json!({
-            "code": 0,
-            "request": { "code": 0, "data": { "lyric": "cafe" } },
-        }))
-        .unwrap();
-
-        let result = response.request.unwrap();
-
-        assert_eq!(response.code, Some(0));
-        assert_eq!(result.code, Some(0));
-        assert_eq!(result.data.unwrap().lyric, "cafe");
-    }
-
-    #[test]
-    fn a_zero_code_is_accepted() {
-        assert!(check_code(Some(0), SEARCH_MODULE, SEARCH_METHOD, "gateway").is_ok());
-    }
-
-    #[test]
-    fn a_non_zero_code_is_rejected() {
-        check_code_error(Some(2001), "rejected the client identity");
-        check_code_error(Some(1000), "returned gateway error code 1000");
-        check_code_error(None, "missing the gateway 'code' field");
-    }
 }

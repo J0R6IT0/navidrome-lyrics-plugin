@@ -10,7 +10,6 @@ crate-type = ["cdylib"]
 base64 = "0.23"
 extism-pdk = "1"
 flate2 = "1"
-getrandom = "0.2"
 nd-pdk = { git = "https://github.com/navidrome/navidrome", subdir = "plugins/pdk/rust/nd-pdk" }
 percent-encoding = "2"
 regex = "1"

@@ -14,7 +14,10 @@ const PREFIX_NEGATIVE: &str = "miss:";
 
 const SENTINEL: &[u8] = &[1u8];
 
-fn cache_key(track_id: &str, kind: LyricsKind) -> String {
+fn cache_key(track_id: &str, kind: LyricsKind, bilingual: bool) -> String {
+    if bilingual && kind != LyricsKind::Instrumental {
+        return format!("{}:bi:{track_id}", kind.slug());
+    }
     format!("{}:{track_id}", kind.slug())
 }
 
@@ -65,14 +68,18 @@ impl LyricsCache {
         let kind = lyrics.kind();
         let ttl = self.cfg.cache_ttl_hours_for(kind).saturating_mul(3600);
 
-        kvstore::set_with_ttl(&cache_key(track_id, kind), bytes, ttl)
+        kvstore::set_with_ttl(&self.key(track_id, kind), bytes, ttl)
             .map_err(|e| LyricsError::new(format!("failed to write to cache: {e}")))?;
 
         Ok(())
     }
 
+    fn key(&self, track_id: &str, kind: LyricsKind) -> String {
+        cache_key(track_id, kind, self.cfg.merge_translations)
+    }
+
     fn is_instrumental(&self, track_id: &str) -> bool {
-        kvstore::get(&cache_key(track_id, LyricsKind::Instrumental))
+        kvstore::get(&self.key(track_id, LyricsKind::Instrumental))
             .ok()
             .flatten()
             .is_some()
@@ -95,7 +102,7 @@ impl LyricsCache {
     }
 
     fn get(&self, track_id: &str, kind: LyricsKind) -> Option<Lyrics> {
-        let bytes = kvstore::get(&cache_key(track_id, kind)).ok()??;
+        let bytes = kvstore::get(&self.key(track_id, kind)).ok()??;
 
         match kind {
             LyricsKind::Instrumental => {
@@ -150,7 +157,12 @@ mod tests {
 
     #[track_caller]
     fn check_key(kind: LyricsKind, expected: &str) {
-        assert_eq!(cache_key("abc123", kind), expected);
+        assert_eq!(cache_key("abc123", kind, false), expected);
+    }
+
+    #[track_caller]
+    fn check_bilingual_key(kind: LyricsKind, expected: &str) {
+        assert_eq!(cache_key("abc123", kind, true), expected);
     }
 
     #[track_caller]
@@ -175,6 +187,13 @@ mod tests {
         check_key(LyricsKind::Srt, "srt:abc123");
         check_key(LyricsKind::Lyricsfile, "lyricsfile:abc123");
         check_key(LyricsKind::Instrumental, "instrumental:abc123");
+    }
+
+    #[test]
+    fn merged_entries_do_not_share_the_plain_key() {
+        check_bilingual_key(LyricsKind::Lrc, "lrc:bi:abc123");
+        check_bilingual_key(LyricsKind::Elrc, "elrc:bi:abc123");
+        check_bilingual_key(LyricsKind::Instrumental, "instrumental:abc123");
     }
 
     #[test]

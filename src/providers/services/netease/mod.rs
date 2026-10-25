@@ -3,7 +3,7 @@ use std::time::Duration;
 use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
-    format::lrc,
+    format::{bilingual, lrc},
     providers::{LyricsProvider, ProviderResult, error::ProviderError, http::Http},
     types::{Lyrics, LyricsKind},
 };
@@ -46,7 +46,9 @@ struct Album {
 #[serde(rename_all = "camelCase")]
 struct LyricsResponse {
     lrc: Option<LyricContent>,
+    tlyric: Option<LyricContent>,
     yrc: Option<LyricContent>,
+    ytlrc: Option<LyricContent>,
     #[serde(default)]
     pure_music: bool,
 }
@@ -66,11 +68,15 @@ impl LyricContent {
     }
 }
 
-pub struct NetEase;
+pub struct NetEase {
+    merge_translation: bool,
+}
 
 impl NetEase {
-    pub fn create(_params: &ProviderParams) -> Box<dyn LyricsProvider> {
-        Box::new(Self)
+    pub fn create(params: &ProviderParams) -> Box<dyn LyricsProvider> {
+        Box::new(Self {
+            merge_translation: params.flag("mergeTranslation"),
+        })
     }
 
     fn search(&self, track: &TrackInfo) -> ProviderResult<SearchResponse> {
@@ -123,6 +129,14 @@ impl LyricsProvider for NetEase {
         &[LyricsKind::Lrc, LyricsKind::Elrc]
     }
 
+    fn log_params(&self) -> Vec<(&'static str, String)> {
+        if self.merge_translation {
+            vec![("mergeTranslation", "true".to_string())]
+        } else {
+            Vec::new()
+        }
+    }
+
     fn fetch_lyrics(
         &self,
         track: &TrackInfo,
@@ -161,7 +175,13 @@ impl LyricsProvider for NetEase {
             match kind {
                 LyricsKind::Elrc => {
                     if let Some(raw) = LyricContent::text(&response.yrc) {
-                        let elrc = yrc::to_enhanced_lrc(raw);
+                        let mut elrc = yrc::to_enhanced_lrc(raw);
+
+                        if self.merge_translation
+                            && let Some(translation) = LyricContent::text(&response.ytlrc)
+                        {
+                            elrc = bilingual::merge(&elrc, translation);
+                        }
 
                         if !elrc.trim().is_empty() {
                             return Ok(Some(Lyrics::Elrc(elrc)));
@@ -170,7 +190,13 @@ impl LyricsProvider for NetEase {
                 }
 
                 LyricsKind::Lrc => {
-                    if let Some(text) = lrc.take_if(|text| lrc::is_synced(text)) {
+                    if let Some(mut text) = lrc.take_if(|text| lrc::is_synced(text)) {
+                        if self.merge_translation
+                            && let Some(translation) = LyricContent::text(&response.tlyric)
+                        {
+                            text = bilingual::merge(&text, translation);
+                        }
+
                         return Ok(Some(Lyrics::Lrc(text)));
                     }
                 }
@@ -220,5 +246,26 @@ mod tests {
     #[test]
     fn strip_metadata_empty() {
         assert_eq!(strip_metadata(""), "");
+    }
+
+    #[test]
+    fn response_parses_translated_lyrics() {
+        let raw = r#"{
+            "lrc": {"lyric": "[00:01.00]Hello"},
+            "tlyric": {"lyric": "[00:01.00]你好"},
+            "yrc": {"lyric": "[1000,2000](1000,500,0)Hello(1500,500,0)"},
+            "ytlrc": {"lyric": "[00:01.00]你好"}
+        }"#;
+
+        let response: LyricsResponse = serde_json::from_str(raw).unwrap();
+
+        assert_eq!(
+            LyricContent::text(&response.tlyric).as_deref(),
+            Some("[00:01.00]你好")
+        );
+        assert_eq!(
+            LyricContent::text(&response.ytlrc).as_deref(),
+            Some("[00:01.00]你好")
+        );
     }
 }

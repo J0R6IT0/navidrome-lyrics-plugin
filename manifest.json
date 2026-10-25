@@ -108,6 +108,12 @@
                 "title": "Custom base URL",
                 "description": "Optional. Leave empty to use the provider's default."
               },
+              "mergeTranslation": {
+                "type": "boolean",
+                "title": "Merge translation into lyrics",
+                "description": "Places translated lines under the original ones when the song has a translation. Availability varies by song.",
+                "default": false
+              },
               "sources": {
                 "type": "array",
                 "title": "Sources",
@@ -472,6 +478,19 @@
                           "scope": "#/properties/provider",
                           "schema": {
                             "enum": ["lrclib", "lyrics.ovh", "lrcmux"]
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/mergeTranslation",
+                      "rule": {
+                        "effect": "SHOW",
+                        "condition": {
+                          "scope": "#/properties/provider",
+                          "schema": {
+                            "const": "netease"
                           }
                         }
                       }

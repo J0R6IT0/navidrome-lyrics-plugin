@@ -48,7 +48,7 @@ Some of the providers don't host lyrics themselves, they pull them from other we
 | [lrcmux](https://lrcmux.dev)             | Genius, KuGou, Musixmatch, LRCLIB, NetEase, YouTube Music             | plain,lrc,elrc       | Supports custom instances                                            |
 | [lrc.red](https://lrc.red)               |                                                                       | ttml,lrc,lyricsfile  |                                                                      |
 | [BiniLyrics](https://lyrics.binimum.org) | lrc.red                                                               | ttml                 | API redirects to lrc.red as of October 2026                          |
-| KuGou                                    |                                                                       | lrc,elrc             |                                                                      |
+| KuGou                                    |                                                                       | lrc,elrc             | Optional translation merge                                           |
 | NetEase                                  |                                                                       | lrc,elrc             | Optional translation merge                                           |
 | QQ Music                                 |                                                                       | lrc,elrc             | Optional translation merge                                           |
 | Apple Music                              |                                                                       | ttml                 | Supports translations and romanization. Requires active subscription |

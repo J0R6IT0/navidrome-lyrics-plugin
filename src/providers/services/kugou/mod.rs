@@ -3,7 +3,7 @@ use std::time::Duration;
 use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
-    format::lrc,
+    format::{bilingual, lrc},
     providers::{LyricsProvider, ProviderResult, error::ProviderError, http::Http},
     types::{Lyrics, LyricsKind},
 };
@@ -65,11 +65,15 @@ struct DownloadResponse {
     content: String,
 }
 
-pub struct KuGou;
+pub struct KuGou {
+    merge_translation: bool,
+}
 
 impl KuGou {
-    pub fn create(_params: &ProviderParams) -> Box<dyn LyricsProvider> {
-        Box::new(Self)
+    pub fn create(params: &ProviderParams) -> Box<dyn LyricsProvider> {
+        Box::new(Self {
+            merge_translation: params.flag("mergeTranslation"),
+        })
     }
 
     fn search_song(&self, track: &TrackInfo) -> ProviderResult<SongSearchResponse> {
@@ -144,6 +148,14 @@ impl LyricsProvider for KuGou {
         &[LyricsKind::Lrc, LyricsKind::Elrc]
     }
 
+    fn log_params(&self) -> Vec<(&'static str, String)> {
+        if self.merge_translation {
+            vec![("mergeTranslation", "true".to_string())]
+        } else {
+            Vec::new()
+        }
+    }
+
     fn fetch_lyrics(
         &self,
         track: &TrackInfo,
@@ -187,9 +199,14 @@ impl LyricsProvider for KuGou {
             match kind {
                 LyricsKind::Elrc if candidate.krctype != 0 => {
                     let bytes = self.download(&candidate, "krc")?;
-                    match krc::to_enhanced_lrc(&bytes) {
-                        Ok(elrc) if !elrc.trim().is_empty() => {
-                            return Ok(Some(Lyrics::Elrc(elrc)));
+                    match krc::parse(&bytes) {
+                        Ok(mut parsed) if !parsed.elrc.trim().is_empty() => {
+                            if self.merge_translation
+                                && let Some(translation) = parsed.translation.take()
+                            {
+                                parsed.elrc = bilingual::merge(&parsed.elrc, &translation);
+                            }
+                            return Ok(Some(Lyrics::Elrc(parsed.elrc)));
                         }
                         Ok(_) => {}
                         Err(e) => warn!("kugou: failed to decode krc lyrics: {e}"),
@@ -197,10 +214,41 @@ impl LyricsProvider for KuGou {
                 }
 
                 LyricsKind::Lrc => {
-                    let bytes = self.download(&candidate, "lrc")?;
-                    let lrc = String::from_utf8(bytes).map_err(|e| {
-                        ProviderError::other(format!("lyrics content is not valid UTF-8: {e}"))
-                    })?;
+                    let krc_lyrics = if self.merge_translation && candidate.krctype != 0 {
+                        match self.download(&candidate, "krc") {
+                            Ok(bytes) => match krc::parse(&bytes) {
+                                Ok(parsed) if !parsed.lrc.trim().is_empty() => Some(parsed),
+                                Ok(_) => None,
+                                Err(e) => {
+                                    warn!("kugou: failed to decode krc lyrics: {e}");
+                                    None
+                                }
+                            },
+                            Err(e) => {
+                                warn!("kugou: failed to download krc lyrics: {e}");
+                                None
+                            }
+                        }
+                    } else {
+                        None
+                    };
+
+                    let lrc = match krc_lyrics {
+                        Some(mut parsed) => {
+                            if let Some(translation) = parsed.translation.take() {
+                                parsed.lrc = bilingual::merge(&parsed.lrc, &translation);
+                            }
+                            parsed.lrc
+                        }
+                        None => {
+                            let bytes = self.download(&candidate, "lrc")?;
+                            String::from_utf8(bytes).map_err(|e| {
+                                ProviderError::other(format!(
+                                    "lyrics content is not valid UTF-8: {e}"
+                                ))
+                            })?
+                        }
+                    };
 
                     if lrc::is_instrumental(&lrc) {
                         warn!("kugou: track was not marked as instrumental and is instrumental");

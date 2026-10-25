@@ -1,6 +1,8 @@
-use crate::format::elrc;
+use crate::format::{elrc, lrc};
+use base64::{Engine, engine::general_purpose::STANDARD};
 use flate2::read::ZlibDecoder;
 use regex::Regex;
+use serde::Deserialize;
 use std::io::Read;
 
 /// XOR key used to obfuscate KuGou KRC payloads.
@@ -10,9 +12,35 @@ const KRC_KEY: [u8; 16] = [
 
 const MAGIC: &[u8] = b"krc1";
 
-pub fn to_enhanced_lrc(decoded: &[u8]) -> Result<String, String> {
+pub struct Lyrics {
+    pub elrc: String,
+    pub lrc: String,
+    pub translation: Option<String>,
+}
+
+struct Line {
+    start_ms: i64,
+    words: Vec<elrc::Word>,
+}
+
+#[derive(Deserialize)]
+struct Language {
+    #[serde(default)]
+    content: Vec<LanguageContent>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LanguageContent {
+    #[serde(rename = "type", default)]
+    kind: i64,
+    #[serde(default)]
+    lyric_content: Vec<Vec<String>>,
+}
+
+pub fn parse(decoded: &[u8]) -> Result<Lyrics, String> {
     let krc = decrypt(decoded)?;
-    Ok(convert(&krc))
+    Ok(parse_text(&krc))
 }
 
 fn decrypt(decoded: &[u8]) -> Result<String, String> {
@@ -35,14 +63,25 @@ fn decrypt(decoded: &[u8]) -> Result<String, String> {
     String::from_utf8(bytes).map_err(|e| format!("krc is not valid UTF-8: {e}"))
 }
 
-fn convert(krc: &str) -> String {
+fn parse_text(krc: &str) -> Lyrics {
     let line_re = Regex::new(r"^\[(\d+),\d+\](.*)$").unwrap();
     let word_re = Regex::new(r"<(\d+),(\d+),-?\d+>([^<]*)").unwrap();
 
-    let mut out = Vec::new();
+    let mut lines = Vec::new();
+    let mut translation = None;
 
-    for line in krc.lines() {
-        let Some(caps) = line_re.captures(line.trim()) else {
+    for raw in krc.lines() {
+        let raw = raw.trim();
+
+        if let Some(encoded) = raw
+            .strip_prefix("[language:")
+            .and_then(|line| line.strip_suffix(']'))
+        {
+            translation = parse_translation(encoded);
+            continue;
+        }
+
+        let Some(caps) = line_re.captures(raw) else {
             continue;
         };
 
@@ -60,12 +99,60 @@ fn convert(krc: &str) -> String {
             })
             .collect();
 
-        if let Some(rendered) = elrc::render_line(start, &words) {
-            out.push(rendered);
-        }
+        lines.push(Line {
+            start_ms: start,
+            words,
+        });
     }
 
-    out.join("\n")
+    let elrc = lines
+        .iter()
+        .filter_map(|line| elrc::render_line(line.start_ms, &line.words))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let lrc = lines
+        .iter()
+        .map(|line| {
+            let text: String = line.words.iter().map(|word| word.text.as_str()).collect();
+            format!("[{}]{text}", lrc::format_timestamp(line.start_ms))
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let translation = translation.and_then(|content| {
+        let translated: Vec<String> = lines
+            .iter()
+            .zip(content)
+            .filter_map(|(line, text)| {
+                let text = text.trim();
+                (!text.is_empty())
+                    .then(|| format!("[{}]{text}", lrc::format_timestamp(line.start_ms)))
+            })
+            .collect();
+
+        (!translated.is_empty()).then(|| translated.join("\n"))
+    });
+
+    Lyrics {
+        elrc,
+        lrc,
+        translation,
+    }
+}
+
+fn parse_translation(encoded: &str) -> Option<Vec<String>> {
+    let json = STANDARD.decode(encoded).ok()?;
+    let language: Language = serde_json::from_slice(&json).ok()?;
+    let content = language.content.into_iter().find(|item| item.kind == 1)?;
+
+    Some(
+        content
+            .lyric_content
+            .into_iter()
+            .map(|parts| parts.concat())
+            .collect(),
+    )
 }
 
 #[cfg(test)]
@@ -74,7 +161,7 @@ mod tests {
 
     #[track_caller]
     fn check(krc: &str, expected: &str) {
-        assert_eq!(convert(krc), expected);
+        assert_eq!(parse_text(krc).elrc, expected);
     }
 
     #[test]
@@ -108,11 +195,35 @@ mod tests {
 
     #[test]
     fn empty_check() {
-        assert_eq!(convert(""), "");
+        let parsed = parse_text("");
+        assert_eq!(parsed.elrc, "");
+        assert_eq!(parsed.lrc, "");
+        assert_eq!(parsed.translation, None);
+    }
+
+    #[test]
+    fn translations_are_aligned_by_line() {
+        let language = STANDARD.encode(
+            r#"{"content":[{"language":9,"type":0,"lyricContent":[["romaji"]]},{"language":0,"type":1,"lyricContent":[["你好"],[" "],["世界"]]}]}"#,
+        );
+        let krc = format!(
+            "[0,1000]<0,500,0>Hello<500,500,0>\n[1000,1000]<0,1000,0>World\n[2000,1000]<0,1000,0>Again\n[language:{language}]"
+        );
+
+        let parsed = parse_text(&krc);
+
+        assert_eq!(
+            parsed.lrc,
+            "[00:00.00]Hello\n[00:01.00]World\n[00:02.00]Again"
+        );
+        assert_eq!(
+            parsed.translation.as_deref(),
+            Some("[00:00.00]你好\n[00:02.00]世界")
+        );
     }
 
     #[test]
     fn test_decrypt_rejects_non_krc() {
-        assert!(to_enhanced_lrc(b"not a krc payload").is_err());
+        assert!(parse(b"not a krc payload").is_err());
     }
 }

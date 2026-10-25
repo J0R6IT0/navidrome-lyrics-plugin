@@ -48,12 +48,14 @@ Some of the providers don't host lyrics themselves, they pull them from other we
 | [lrcmux](https://lrcmux.dev)             | Genius, KuGou, Musixmatch, LRCLIB, NetEase, YouTube Music             | plain,lrc,elrc       | Supports custom instances                                            |
 | [lrc.red](https://lrc.red)               |                                                                       | ttml,lrc,lyricsfile  |                                                                      |
 | [BiniLyrics](https://lyrics.binimum.org) | lrc.red                                                               | ttml                 | API redirects to lrc.red as of October 2026                          |
-| KuGou                                    |                                                                       | lrc,elrc             |                                                                      |
-| NetEase                                  |                                                                       | lrc,elrc             |                                                                      |
-| QQ Music                                 |                                                                       | lrc,elrc             |                                                                      |
+| KuGou                                    |                                                                       | lrc,elrc             | Optional translation merge                                           |
+| NetEase                                  |                                                                       | lrc,elrc             | Optional translation merge                                           |
+| QQ Music                                 |                                                                       | lrc,elrc             | Optional translation merge                                           |
 | Apple Music                              |                                                                       | ttml                 | Supports translations and romanization. Requires active subscription |
 | stixoi.info                              |                                                                       | plain                | Greek lyrics                                                         |
 | Genie Music                              |                                                                       | lrc                  | Korean lyrics                                                        |
+
+KuGou, NetEase and QQ Music can also place translated lines under the original ones. Enable **Merge translation into lyrics** in the provider settings; availability depends on the song.
 
 ## Provider modes
 

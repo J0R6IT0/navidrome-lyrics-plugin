@@ -11,6 +11,15 @@ impl ProviderParams {
     pub fn get(&self, key: &str) -> Option<&str> {
         self.0.get(key).map(String::as_str)
     }
+
+    pub fn flag(&self, key: &str) -> bool {
+        self.get(key).is_some_and(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "true" | "1" | "yes"
+            )
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -260,5 +269,25 @@ mod tests {
     #[test]
     fn an_empty_provider_list_is_valid() {
         check_providers("[]", Some(Vec::new()));
+    }
+
+    #[test]
+    fn boolean_parameters_are_read_as_flags() {
+        let params = entry(
+            "netease",
+            &[
+                ("mergeTranslation", "true"),
+                ("other", "1"),
+                ("third", "YES"),
+                ("off", "false"),
+            ],
+        )
+        .params;
+
+        assert!(params.flag("mergeTranslation"));
+        assert!(params.flag("other"));
+        assert!(params.flag("third"));
+        assert!(!params.flag("off"));
+        assert!(!params.flag("missing"));
     }
 }

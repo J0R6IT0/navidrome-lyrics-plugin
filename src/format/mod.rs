@@ -1,5 +1,6 @@
 use regex::Regex;
 
+pub mod bilingual;
 pub mod censor;
 pub mod elrc;
 pub mod lrc;

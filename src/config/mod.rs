@@ -42,6 +42,7 @@ pub struct PluginConfig {
     pub negative_cache: bool,
     pub negative_cache_ttl_hours: i64,
     pub providers: Vec<ProviderEntry>,
+    pub merge_translations: bool,
     pub provider_mode: ProviderMode,
     pub prefer_uncensored: bool,
     pub write_to_specific_folder: bool,
@@ -68,6 +69,7 @@ impl Default for PluginConfig {
             negative_cache: true,
             negative_cache_ttl_hours: DEFAULT_NEGATIVE_CACHE_TTL,
             providers: vec![],
+            merge_translations: false,
             provider_mode: ProviderMode::default(),
             prefer_uncensored: false,
             write_to_specific_folder: false,
@@ -84,6 +86,10 @@ impl Default for PluginConfig {
 impl PluginConfig {
     pub fn load() -> Result<Self> {
         let per_type_cache_ttl = get_bool("perTypeCacheTtl", false)?;
+        let providers = providers::resolve_list()?;
+        let merge_translations = providers
+            .iter()
+            .any(|entry| entry.params.flag("mergeTranslation"));
 
         Ok(Self {
             lyrics_type_priority: resolve_lyrics_type_priority()?,
@@ -106,7 +112,8 @@ impl PluginConfig {
             },
             negative_cache: get_bool("negativeCache", true)?,
             negative_cache_ttl_hours: ttl::resolve_negative()?,
-            providers: providers::resolve_list()?,
+            providers,
+            merge_translations,
             provider_mode: providers::resolve_mode()?,
             prefer_uncensored: get_bool("preferUncensored", false)?,
             write_to_specific_folder: get_bool("writeToSpecificFolder", false)?,

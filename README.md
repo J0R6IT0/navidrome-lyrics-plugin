@@ -50,7 +50,7 @@ Some of the providers don't host lyrics themselves, they pull them from other we
 | [BiniLyrics](https://lyrics.binimum.org) | lrc.red                                                               | ttml                 | API redirects to lrc.red as of October 2026                          |
 | KuGou                                    |                                                                       | lrc,elrc             |                                                                      |
 | NetEase                                  |                                                                       | lrc,elrc             | Optional translation merge                                           |
-| QQ Music                                 |                                                                       | lrc,elrc             |                                                                      |
+| QQ Music                                 |                                                                       | lrc,elrc             | Optional translation merge                                           |
 | Apple Music                              |                                                                       | ttml                 | Supports translations and romanization. Requires active subscription |
 | stixoi.info                              |                                                                       | plain                | Greek lyrics                                                         |
 | Genie Music                              |                                                                       | lrc                  | Korean lyrics                                                        |

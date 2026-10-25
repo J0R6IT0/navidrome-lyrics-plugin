@@ -490,7 +490,7 @@
                         "condition": {
                           "scope": "#/properties/provider",
                           "schema": {
-                            "const": "netease"
+                            "enum": ["netease", "qqmusic"]
                           }
                         }
                       }

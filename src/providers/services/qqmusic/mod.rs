@@ -8,7 +8,7 @@
 use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
-    format::lrc,
+    format::{bilingual, lrc},
     providers::{LyricsProvider, ProviderResult, error::ProviderError, http::Http},
     types::{Lyrics, LyricsKind},
 };
@@ -54,14 +54,17 @@ struct LyricParam {
     song_id: u64,
     qrc: u32,
     crypt: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    trans: Option<u32>,
 }
 
 impl LyricParam {
-    fn new(song: &Song) -> Self {
+    fn new(song: &Song, merge_translation: bool) -> Self {
         Self {
             song_id: song.id,
             qrc: 1,
             crypt: 1,
+            trans: merge_translation.then_some(1),
         }
     }
 }
@@ -128,13 +131,24 @@ struct Album {
 struct LyricData {
     #[serde(default)]
     lyric: String,
+    #[serde(default)]
+    trans: String,
 }
 
-pub struct QQMusic;
+struct LyricContent {
+    original: String,
+    translation: Option<String>,
+}
+
+pub struct QQMusic {
+    merge_translation: bool,
+}
 
 impl QQMusic {
-    pub fn create(_params: &ProviderParams) -> Box<dyn LyricsProvider> {
-        Box::new(Self)
+    pub fn create(params: &ProviderParams) -> Box<dyn LyricsProvider> {
+        Box::new(Self {
+            merge_translation: params.flag("mergeTranslation"),
+        })
     }
 
     fn search(&self, track: &TrackInfo) -> ProviderResult<Vec<Song>> {
@@ -158,8 +172,8 @@ impl QQMusic {
         )
     }
 
-    fn get(&self, song: &Song) -> ProviderResult<Option<String>> {
-        let param = LyricParam::new(song);
+    fn get(&self, song: &Song) -> ProviderResult<Option<LyricContent>> {
+        let param = LyricParam::new(song, self.merge_translation);
         let data: LyricData = with_fallback(
             "lyric",
             || self.request(LITE_URL, LYRIC_MODULE, LYRIC_METHOD, &param),
@@ -183,16 +197,43 @@ impl QQMusic {
             }
         };
 
-        let content = qrc::extract_lyric_content(&xml);
-
-        if content.is_none() {
+        let Some(original) = qrc::extract_lyric_content(&xml) else {
             warn!(
                 "qqmusic: the decrypted payload for song {} carries no LyricContent",
                 song.id
             );
-        }
+            return Ok(None);
+        };
 
-        Ok(content)
+        let translation = if self.merge_translation && !data.trans.is_empty() {
+            self.translation(song, &data.trans)
+        } else {
+            None
+        };
+
+        Ok(Some(LyricContent {
+            original,
+            translation,
+        }))
+    }
+
+    fn translation(&self, song: &Song, encrypted: &str) -> Option<String> {
+        let text = match qrc::decrypt(encrypted) {
+            Ok(text) => text,
+            Err(e) => {
+                warn!(
+                    "qqmusic: failed to decrypt the translation for song {} ({} hex chars): {e}",
+                    song.id,
+                    encrypted.len()
+                );
+                return None;
+            }
+        };
+
+        let text = qrc::extract_lyric_content(&text).unwrap_or(text);
+        let text = without_placeholders(&text);
+
+        (!text.is_empty()).then_some(text)
     }
 
     fn request<P: Serialize, T: DeserializeOwned>(
@@ -240,6 +281,14 @@ impl LyricsProvider for QQMusic {
         &[LyricsKind::Lrc, LyricsKind::Elrc]
     }
 
+    fn log_params(&self) -> Vec<(&'static str, String)> {
+        if self.merge_translation {
+            vec![("mergeTranslation", "true".to_string())]
+        } else {
+            Vec::new()
+        }
+    }
+
     fn fetch_lyrics(
         &self,
         track: &TrackInfo,
@@ -266,9 +315,9 @@ impl LyricsProvider for QQMusic {
             None => return Ok(None),
         };
 
-        let is_qrc = qrc::is_qrc(&content);
+        let is_qrc = qrc::is_qrc(&content.original);
 
-        if !is_qrc && lrc::is_instrumental(&content) {
+        if !is_qrc && lrc::is_instrumental(&content.original) {
             info!("qqmusic: track is instrumental");
             return Ok(Some(Lyrics::Instrumental));
         }
@@ -276,7 +325,10 @@ impl LyricsProvider for QQMusic {
         for &kind in &cfg.lyrics_type_priority {
             match kind {
                 LyricsKind::Elrc if is_qrc => {
-                    let elrc = qrc::to_enhanced_lrc(&content);
+                    let mut elrc = qrc::to_enhanced_lrc(&content.original);
+                    if let Some(translation) = &content.translation {
+                        elrc = bilingual::merge(&elrc, translation);
+                    }
 
                     if !elrc.trim().is_empty() {
                         return Ok(Some(Lyrics::Elrc(elrc)));
@@ -284,11 +336,14 @@ impl LyricsProvider for QQMusic {
                 }
 
                 LyricsKind::Lrc => {
-                    let lrc = if is_qrc {
-                        qrc::to_lrc(&content)
+                    let mut lrc = if is_qrc {
+                        qrc::to_lrc(&content.original)
                     } else {
-                        content.clone()
+                        content.original.clone()
                     };
+                    if let Some(translation) = &content.translation {
+                        lrc = bilingual::merge(&lrc, translation);
+                    }
 
                     if !lrc.trim().is_empty() {
                         return Ok(Some(Lyrics::Lrc(lrc)));
@@ -327,4 +382,63 @@ fn check_code(code: Option<i64>, module: &str, method: &str, level: &str) -> Pro
 
 fn missing(module: &str, method: &str, what: &str) -> ProviderError {
     ProviderError::other(format!("{module}.{method} response is missing the {what}"))
+}
+
+fn without_placeholders(text: &str) -> String {
+    text.lines()
+        .filter(|line| {
+            let content = line.split_once(']').map_or("", |(_, rest)| rest).trim();
+            !content.is_empty() && content != "//"
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn placeholders_are_removed_from_translations() {
+        let input = concat!(
+            "[ti:Hello]\n",
+            "[offset:0]\n",
+            "[00:00.00]//\n",
+            "[00:06.59]你好 是我\n",
+            "[00:09.70]\n",
+            "[00:12.08] // \n",
+            "[00:18.23]叙叙旧 聊聊天"
+        );
+
+        assert_eq!(
+            without_placeholders(input),
+            "[00:06.59]你好 是我\n[00:18.23]叙叙旧 聊聊天"
+        );
+    }
+
+    #[test]
+    fn lyric_data_parses_the_translation() {
+        let data: LyricData =
+            serde_json::from_str(r#"{"lyric":"lrc","trans":"translated"}"#).unwrap();
+        assert_eq!(data.lyric, "lrc");
+        assert_eq!(data.trans, "translated");
+
+        let data: LyricData = serde_json::from_str(r#"{"lyric":"lrc"}"#).unwrap();
+        assert!(data.trans.is_empty());
+    }
+
+    #[test]
+    fn translation_is_only_requested_when_merging() {
+        let song = Song {
+            id: 42,
+            album: Album::default(),
+            interval: 0,
+        };
+
+        let plain = serde_json::to_string(&LyricParam::new(&song, false)).unwrap();
+        assert!(!plain.contains("trans"));
+
+        let merged = serde_json::to_string(&LyricParam::new(&song, true)).unwrap();
+        assert!(merged.contains(r#""trans":1"#));
+    }
 }

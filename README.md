@@ -55,6 +55,8 @@ Some of the providers don't host lyrics themselves, they pull them from other we
 | stixoi.info                              |                                                                       | plain                | Greek lyrics                                                         |
 | Genie Music                              |                                                                       | lrc                  | Korean lyrics                                                        |
 
+KuGou, NetEase and QQ Music can also place translated lines under the original ones. Enable **Merge translation into lyrics** in the provider settings; availability depends on the song.
+
 ## Provider modes
 
 The **provider mode** controls how the provider list is used on each lookup:

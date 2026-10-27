@@ -138,6 +138,30 @@ impl SyncLevel {
     }
 }
 
+pub struct Word {
+    pub text: String,
+    pub start_ms: i64,
+    pub end_ms: i64,
+}
+
+impl Word {
+    pub fn new(text: impl Into<String>, start_ms: i64, end_ms: i64) -> Self {
+        Self {
+            text: text.into(),
+            start_ms,
+            end_ms,
+        }
+    }
+
+    pub fn duration(&self) -> i64 {
+        self.end_ms - self.start_ms
+    }
+
+    pub fn is_separator(&self) -> bool {
+        self.text.trim().is_empty()
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LyricsKind {
     Plain,

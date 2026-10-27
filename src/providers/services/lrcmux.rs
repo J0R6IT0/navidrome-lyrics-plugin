@@ -3,7 +3,7 @@ use crate::{
     ext::TrackInfoExt,
     format::{elrc, lrc},
     providers::{LyricsProvider, ProviderResult, error::ProviderError, http::Http},
-    types::{Lyrics, LyricsKind},
+    types::{self, Lyrics, LyricsKind},
 };
 use nd_pdk::lyrics::TrackInfo;
 use serde::Deserialize;
@@ -185,11 +185,11 @@ fn restrict_sources(configured: Option<&str>) -> Option<String> {
     Some(picked.join(","))
 }
 
-fn timed_words(line: &Line, words: &[Word]) -> Vec<elrc::Word> {
+fn timed_words(line: &Line, words: &[Word]) -> Vec<types::Word> {
     words
         .iter()
         .enumerate()
-        .map(|(i, w)| elrc::Word {
+        .map(|(i, w)| types::Word {
             text: w.text.clone(),
             start_ms: w.start,
             end_ms: w

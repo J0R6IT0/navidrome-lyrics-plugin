@@ -1,6 +1,10 @@
 use crate::types::SyncLevel;
 use regex::Regex;
 
+mod document;
+
+pub use document::{Document, TrackKind};
+
 pub fn sync_level(doc: &str) -> SyncLevel {
     if let Some(level) = itunes_timing(doc) {
         return level;

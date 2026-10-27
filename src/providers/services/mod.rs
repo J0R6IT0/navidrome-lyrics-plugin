@@ -9,6 +9,7 @@ mod lyricsovh;
 mod netease;
 mod qqmusic;
 mod stixoi;
+mod unison;
 
 pub use applemusic::*;
 pub use binilyrics::*;
@@ -21,3 +22,4 @@ pub use lyricsovh::*;
 pub use netease::*;
 pub use qqmusic::*;
 pub use stixoi::*;
+pub use unison::*;

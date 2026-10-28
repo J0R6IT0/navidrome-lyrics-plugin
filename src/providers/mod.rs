@@ -7,7 +7,7 @@ use crate::{
             QQMusic, Stixoi, Unison,
         },
     },
-    types::{Lyrics, LyricsKind},
+    types::{Lyrics, LyricsKind, LyricsTrack, TrackKind},
 };
 use nd_pdk::lyrics::TrackInfo;
 
@@ -42,11 +42,53 @@ pub fn register_providers(registry: &mut ProviderRegistry) {
     registry.register("unison", Unison::create);
 }
 
+/// Lyrics returned by a provider. Can have optional translation and transliteration
+/// tracks that will be merged into a single TTML.
+pub struct ProviderLyrics {
+    pub lyrics: Lyrics,
+    pub tracks: Vec<LyricsTrack>,
+}
+
+#[allow(dead_code)]
+impl ProviderLyrics {
+    /// Adds a translation track.
+    fn translation(mut self, lrc: String, lang: String) -> Self {
+        self.tracks.push(LyricsTrack {
+            kind: TrackKind::Translation,
+            lang,
+            lrc,
+        });
+        self
+    }
+
+    /// Adds a transliteration track.
+    fn transliteration(mut self, lrc: String, lang: String) -> Self {
+        self.tracks.push(LyricsTrack {
+            kind: TrackKind::Transliteration,
+            lang,
+            lrc,
+        });
+        self
+    }
+}
+
+impl From<Lyrics> for ProviderLyrics {
+    fn from(lyrics: Lyrics) -> Self {
+        Self {
+            lyrics,
+            tracks: Vec::new(),
+        }
+    }
+}
+
 pub trait LyricsProvider {
     fn supported_kinds(&self) -> &'static [LyricsKind];
 
-    fn fetch_lyrics(&self, track: &TrackInfo, cfg: &PluginConfig)
-    -> ProviderResult<Option<Lyrics>>;
+    fn fetch_lyrics(
+        &self,
+        track: &TrackInfo,
+        cfg: &PluginConfig,
+    ) -> ProviderResult<Option<ProviderLyrics>>;
 
     /// Configuration parameters worth including in logs, as `(key, value)` pairs.
     /// Never return a token, cookie or any other credential here.

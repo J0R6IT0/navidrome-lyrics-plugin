@@ -4,7 +4,7 @@ use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
     format::lrc,
-    providers::{LyricsProvider, ProviderResult, error::ProviderError, http::Http},
+    providers::{LyricsProvider, ProviderLyrics, ProviderResult, error::ProviderError, http::Http},
     types::{Lyrics, LyricsKind},
 };
 use base64::{Engine, engine::general_purpose::STANDARD};
@@ -148,7 +148,7 @@ impl LyricsProvider for KuGou {
         &self,
         track: &TrackInfo,
         cfg: &PluginConfig,
-    ) -> ProviderResult<Option<Lyrics>> {
+    ) -> ProviderResult<Option<ProviderLyrics>> {
         if !track.has_artist() {
             return Err(ProviderError::other("track has no artist"));
         }
@@ -175,7 +175,7 @@ impl LyricsProvider for KuGou {
             .is_some_and(|p| p.language == "纯音乐")
         {
             info!("kugou: track is instrumental");
-            return Ok(Some(Lyrics::Instrumental));
+            return Ok(Some(Lyrics::Instrumental.into()));
         }
 
         let candidate = match self.search_lyrics(&song)?.candidates.into_iter().next() {
@@ -189,7 +189,7 @@ impl LyricsProvider for KuGou {
                     let bytes = self.download(&candidate, "krc")?;
                     match krc::to_enhanced_lrc(&bytes) {
                         Ok(elrc) if !elrc.trim().is_empty() => {
-                            return Ok(Some(Lyrics::Elrc(elrc)));
+                            return Ok(Some(Lyrics::Elrc(elrc).into()));
                         }
                         Ok(_) => {}
                         Err(e) => warn!("kugou: failed to decode krc lyrics: {e}"),
@@ -204,10 +204,10 @@ impl LyricsProvider for KuGou {
 
                     if lrc::is_instrumental(&lrc) {
                         warn!("kugou: track was not marked as instrumental and is instrumental");
-                        return Ok(Some(Lyrics::Instrumental));
+                        return Ok(Some(Lyrics::Instrumental.into()));
                     }
                     if !lrc.trim().is_empty() {
-                        return Ok(Some(Lyrics::Lrc(lrc)));
+                        return Ok(Some(Lyrics::Lrc(lrc).into()));
                     }
                 }
 

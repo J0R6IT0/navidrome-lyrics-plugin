@@ -1,7 +1,7 @@
 use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
-    providers::{LyricsProvider, ProviderResult, error::ProviderError, http::Http},
+    providers::{LyricsProvider, ProviderLyrics, ProviderResult, error::ProviderError, http::Http},
     types::{Lyrics, LyricsKind},
 };
 use extism_pdk::info;
@@ -265,7 +265,7 @@ impl LyricsProvider for AppleMusic {
         &self,
         track: &TrackInfo,
         cfg: &PluginConfig,
-    ) -> ProviderResult<Option<Lyrics>> {
+    ) -> ProviderResult<Option<ProviderLyrics>> {
         if !track.has_artist() {
             return Err(ProviderError::other("track has no artist"));
         }
@@ -329,12 +329,14 @@ impl LyricsProvider for AppleMusic {
             result => result,
         };
 
-        result.map_err(|e| match e {
-            LookupError::Fatal(e) => e,
-            LookupError::Unauthorized => ProviderError::other(
-                "authorization failed even after refreshing the developer token",
-            ),
-        })
+        result
+            .map(|found| found.map(Into::into))
+            .map_err(|e| match e {
+                LookupError::Fatal(e) => e,
+                LookupError::Unauthorized => ProviderError::other(
+                    "authorization failed even after refreshing the developer token",
+                ),
+            })
     }
 }
 

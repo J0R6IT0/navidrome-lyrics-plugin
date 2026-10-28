@@ -4,7 +4,7 @@ use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
     format::lrc,
-    providers::{LyricsProvider, ProviderResult, error::ProviderError, http::Http},
+    providers::{LyricsProvider, ProviderLyrics, ProviderResult, error::ProviderError, http::Http},
     types::{Lyrics, LyricsKind},
 };
 use extism_pdk::info;
@@ -127,7 +127,7 @@ impl LyricsProvider for NetEase {
         &self,
         track: &TrackInfo,
         cfg: &PluginConfig,
-    ) -> ProviderResult<Option<Lyrics>> {
+    ) -> ProviderResult<Option<ProviderLyrics>> {
         if !track.has_artist() {
             return Err(ProviderError::other("track has no artist"));
         }
@@ -152,7 +152,7 @@ impl LyricsProvider for NetEase {
 
         if response.pure_music {
             info!("netease: track is instrumental");
-            return Ok(Some(Lyrics::Instrumental));
+            return Ok(Some(Lyrics::Instrumental.into()));
         }
 
         let mut lrc = LyricContent::text(&response.lrc).map(strip_metadata);
@@ -164,20 +164,20 @@ impl LyricsProvider for NetEase {
                         let elrc = yrc::to_enhanced_lrc(raw);
 
                         if !elrc.trim().is_empty() {
-                            return Ok(Some(Lyrics::Elrc(elrc)));
+                            return Ok(Some(Lyrics::Elrc(elrc).into()));
                         }
                     }
                 }
 
                 LyricsKind::Lrc => {
                     if let Some(text) = lrc.take_if(|text| lrc::is_synced(text)) {
-                        return Ok(Some(Lyrics::Lrc(text)));
+                        return Ok(Some(Lyrics::Lrc(text).into()));
                     }
                 }
 
                 LyricsKind::Plain => {
                     if let Some(text) = lrc.take_if(|text| !lrc::is_synced(text)) {
-                        return Ok(Some(Lyrics::Plain(text)));
+                        return Ok(Some(Lyrics::Plain(text).into()));
                     }
                 }
                 _ => {}

@@ -100,7 +100,14 @@
                   { "const": "stixoi", "title": "stixoi.info" },
                   { "const": "genie", "title": "Genie Music" },
                   { "const": "binilyrics", "title": "BiniLyrics" },
-                  { "const": "lrc.red", "title": "lrc.red" }
+                {
+                    "const": "lrc.red",
+                    "title": "lrc.red"
+                },
+                {
+                    "const": "unison",
+                    "title": "Unison"
+                }
                 ]
               },
               "baseUrl": {

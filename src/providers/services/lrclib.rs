@@ -70,7 +70,7 @@ impl Lrclib {
         album: Option<&str>,
     ) -> ProviderResult<Option<Record>> {
         let mut request = Http::get(format!("{}/api/get", self.base_url))
-            .param("artist_name", track.all_artists())
+            .param("artist_name", track.all_artists(" "))
             .param("track_name", title)
             .param("duration", track.duration().as_secs().to_string());
 

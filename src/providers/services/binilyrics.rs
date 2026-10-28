@@ -10,6 +10,8 @@ use std::time::Duration;
 
 const BASE_URL: &str = "https://lyrics-api.binimum.org";
 
+const APOSTROPHES: [char; 6] = ['\'', '\u{2018}', '\u{2019}', '\u{02BC}', '`', '\u{00B4}'];
+
 #[derive(Debug, Deserialize)]
 struct SearchResponse {
     #[serde(default)]
@@ -55,7 +57,9 @@ impl BiniLyrics {
         let query = match track.first_artist() {
             Some(artist) => format!("{} {}", artist, track.clean_title()),
             None => track.clean_title(),
-        };
+        }
+        // Search misses words with an apostrophe inside, like "don't".
+        .replace(APOSTROPHES, "");
 
         let response = Http::get(BASE_URL).param("q", query).send()?;
 

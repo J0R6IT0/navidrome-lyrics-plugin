@@ -1,7 +1,7 @@
 use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
-    providers::{LyricsProvider, ProviderResult, http::Http},
+    providers::{LyricsProvider, ProviderLyrics, ProviderResult, http::Http},
     types::{Lyrics, LyricsKind},
 };
 use nd_pdk::lyrics::TrackInfo;
@@ -94,13 +94,13 @@ impl LyricsProvider for LrcRed {
         &self,
         track: &TrackInfo,
         cfg: &PluginConfig,
-    ) -> ProviderResult<Option<Lyrics>> {
+    ) -> ProviderResult<Option<ProviderLyrics>> {
         match self
             .search(track)?
             .into_iter()
             .find(|hit| matches(track, cfg, hit))
         {
-            Some(hit) => self.fetch_file(&hit.isrc, cfg),
+            Some(hit) => Ok(self.fetch_file(&hit.isrc, cfg)?.map(Into::into)),
             None => Ok(None),
         }
     }

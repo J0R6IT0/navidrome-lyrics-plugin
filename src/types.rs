@@ -163,6 +163,18 @@ impl Word {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TrackKind {
+    Translation,
+    Transliteration,
+}
+
+pub struct LyricsTrack {
+    pub kind: TrackKind,
+    pub lang: String,
+    pub lrc: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LyricsKind {
     Plain,
     Lrc,

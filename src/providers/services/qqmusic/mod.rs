@@ -9,7 +9,7 @@ use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
     format::lrc,
-    providers::{LyricsProvider, ProviderResult, error::ProviderError, http::Http},
+    providers::{LyricsProvider, ProviderLyrics, ProviderResult, error::ProviderError, http::Http},
     types::{Lyrics, LyricsKind},
 };
 use extism_pdk::{info, warn};
@@ -244,7 +244,7 @@ impl LyricsProvider for QQMusic {
         &self,
         track: &TrackInfo,
         cfg: &PluginConfig,
-    ) -> ProviderResult<Option<Lyrics>> {
+    ) -> ProviderResult<Option<ProviderLyrics>> {
         if !track.has_artist() {
             return Err(ProviderError::other("track has no artist"));
         }
@@ -270,7 +270,7 @@ impl LyricsProvider for QQMusic {
 
         if !is_qrc && lrc::is_instrumental(&content) {
             info!("qqmusic: track is instrumental");
-            return Ok(Some(Lyrics::Instrumental));
+            return Ok(Some(Lyrics::Instrumental.into()));
         }
 
         for &kind in &cfg.lyrics_type_priority {
@@ -279,7 +279,7 @@ impl LyricsProvider for QQMusic {
                     let elrc = qrc::to_enhanced_lrc(&content);
 
                     if !elrc.trim().is_empty() {
-                        return Ok(Some(Lyrics::Elrc(elrc)));
+                        return Ok(Some(Lyrics::Elrc(elrc).into()));
                     }
                 }
 
@@ -291,7 +291,7 @@ impl LyricsProvider for QQMusic {
                     };
 
                     if !lrc.trim().is_empty() {
-                        return Ok(Some(Lyrics::Lrc(lrc)));
+                        return Ok(Some(Lyrics::Lrc(lrc).into()));
                     }
                 }
 

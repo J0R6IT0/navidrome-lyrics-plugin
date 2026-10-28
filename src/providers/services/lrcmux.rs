@@ -2,7 +2,7 @@ use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
     format::{elrc, lrc},
-    providers::{LyricsProvider, ProviderResult, error::ProviderError, http::Http},
+    providers::{LyricsProvider, ProviderLyrics, ProviderResult, error::ProviderError, http::Http},
     types::{self, Lyrics, LyricsKind},
 };
 use nd_pdk::lyrics::TrackInfo;
@@ -121,7 +121,7 @@ impl LyricsProvider for Lrcmux {
         &self,
         track: &TrackInfo,
         cfg: &PluginConfig,
-    ) -> ProviderResult<Option<Lyrics>> {
+    ) -> ProviderResult<Option<ProviderLyrics>> {
         if !track.has_artist() {
             return Err(ProviderError::other("track has no artist"));
         }
@@ -148,7 +148,7 @@ impl LyricsProvider for Lrcmux {
             )));
         }
 
-        Ok(pick_lyrics(response, &cfg.lyrics_type_priority))
+        Ok(pick_lyrics(response, &cfg.lyrics_type_priority).map(Into::into))
     }
 }
 

@@ -1,4 +1,5 @@
 use crate::format::lrc;
+use crate::types::TrackKind;
 use quick_xml::Writer;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText, Event};
 use std::io;
@@ -9,12 +10,6 @@ const TTML_NAMESPACE: &str = "http://www.w3.org/ns/ttml";
 const ITUNES_NAMESPACE: &str = "http://music.apple.com/lyric-ttml-internal";
 
 type XmlWriter = Writer<Vec<u8>>;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TrackKind {
-    Translation,
-    Transliteration,
-}
 
 impl TrackKind {
     fn elements(self) -> (&'static str, &'static str) {
@@ -184,6 +179,7 @@ impl Document {
         }
     }
 
+    #[allow(dead_code)]
     pub fn from_plain(text: &str) -> Self {
         Self::from_lines(strip_bom(text).lines().map(Line::plain).collect())
     }

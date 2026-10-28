@@ -1,8 +1,9 @@
 use crate::cache::LyricsCache;
 use crate::config::{PluginConfig, ProviderEntry};
+use crate::format::ttml;
 use crate::providers::error::ProviderError;
-use crate::providers::{LyricsProvider, ProviderRegistry, register_providers};
-use crate::types::Lyrics;
+use crate::providers::{LyricsProvider, ProviderLyrics, ProviderRegistry, register_providers};
+use crate::types::{Lyrics, LyricsKind};
 use extism_pdk::{info, warn};
 use nd_pdk::lyrics::TrackInfo;
 use ranking::{Rank, Ranker};
@@ -37,13 +38,13 @@ struct PreparedProvider {
 }
 
 enum ProviderFetch {
-    Lyrics(Lyrics),
+    Lyrics(ProviderLyrics),
     Empty,
     Error,
 }
 
 struct Candidate {
-    lyrics: Lyrics,
+    fetched: ProviderLyrics,
     rank: Rank,
 }
 
@@ -73,7 +74,7 @@ impl Orchestrator<'_> {
 
         for prepared in self.prepared_providers() {
             match self.fetch_one(&prepared) {
-                ProviderFetch::Lyrics(lyrics) => return Outcome::Found(lyrics),
+                ProviderFetch::Lyrics(fetched) => return self.found(fetched),
                 ProviderFetch::Error => had_error = true,
                 ProviderFetch::Empty => {}
             }
@@ -101,18 +102,18 @@ impl Orchestrator<'_> {
             }
 
             match self.fetch_one(&prepared) {
-                ProviderFetch::Lyrics(lyrics) => {
-                    if matches!(lyrics, Lyrics::Instrumental) {
-                        return Outcome::Found(lyrics);
+                ProviderFetch::Lyrics(fetched) => {
+                    if matches!(fetched.lyrics, Lyrics::Instrumental) {
+                        return Outcome::Found(fetched.lyrics);
                     }
 
-                    let rank = ranker.rank(&lyrics);
+                    let rank = ranker.rank(&fetched.lyrics);
                     if rank.is_censored() {
                         info!("provider '{}' returned censored lyrics", prepared.label);
                     }
 
                     if best.as_ref().is_none_or(|current| rank < current.rank) {
-                        best = Some(Candidate { lyrics, rank });
+                        best = Some(Candidate { fetched, rank });
                     }
 
                     if rank == Rank::BEST {
@@ -125,8 +126,36 @@ impl Orchestrator<'_> {
         }
 
         match best {
-            Some(candidate) => Outcome::Found(candidate.lyrics),
+            Some(candidate) => self.found(candidate.fetched),
             None => outcome_without_lyrics(had_error),
+        }
+    }
+
+    fn found(&self, ProviderLyrics { lyrics, tracks }: ProviderLyrics) -> Outcome {
+        if tracks.is_empty() {
+            return Outcome::Found(lyrics);
+        }
+
+        if !self.cfg.wants(LyricsKind::Ttml) {
+            info!(
+                "leaving out {} translation tracks: ttml is not an enabled lyrics type",
+                tracks.len()
+            );
+            return Outcome::Found(lyrics);
+        }
+
+        match ttml::with_tracks(&lyrics, &tracks) {
+            Some(ttml) => {
+                info!("merged translation tracks into ttml lyrics");
+                Outcome::Found(Lyrics::Ttml(ttml))
+            }
+            None => {
+                info!(
+                    "no translation track matched the {} lyrics",
+                    lyrics.kind().slug()
+                );
+                Outcome::Found(lyrics)
+            }
         }
     }
 
@@ -173,9 +202,9 @@ impl Orchestrator<'_> {
 
         info!("trying provider '{}'", label);
         match provider.fetch_lyrics(self.track, self.cfg) {
-            Ok(Some(mut lyrics)) => {
-                lyrics.sanitize(self.cfg);
-                if lyrics.is_empty() {
+            Ok(Some(mut fetched)) => {
+                fetched.lyrics.sanitize(self.cfg);
+                if fetched.lyrics.is_empty() {
                     warn!(
                         "provider '{}' returned empty lyrics after sanitization, skipping",
                         label
@@ -186,9 +215,9 @@ impl Orchestrator<'_> {
                     info!(
                         "provider '{}' returned {} lyrics",
                         label,
-                        lyrics.kind().slug()
+                        fetched.lyrics.kind().slug()
                     );
-                    ProviderFetch::Lyrics(lyrics)
+                    ProviderFetch::Lyrics(fetched)
                 }
             }
             Ok(None) => {

@@ -1,7 +1,7 @@
 use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
-    providers::{LyricsProvider, ProviderResult, http::Http},
+    providers::{LyricsProvider, ProviderLyrics, ProviderResult, http::Http},
     types::{Lyrics, LyricsKind},
 };
 use nd_pdk::lyrics::TrackInfo;
@@ -91,11 +91,11 @@ impl LyricsProvider for BiniLyrics {
         &self,
         track: &TrackInfo,
         cfg: &PluginConfig,
-    ) -> ProviderResult<Option<Lyrics>> {
+    ) -> ProviderResult<Option<ProviderLyrics>> {
         if track.has_artist()
             && let Some(record) = self.track_lookup(track)?.filter(|r| matches(track, cfg, r))
         {
-            return self.fetch_ttml(&record.lyrics_url);
+            return Ok(self.fetch_ttml(&record.lyrics_url)?.map(Into::into));
         }
 
         match self
@@ -103,7 +103,7 @@ impl LyricsProvider for BiniLyrics {
             .into_iter()
             .find(|record| matches(track, cfg, record))
         {
-            Some(record) => self.fetch_ttml(&record.lyrics_url),
+            Some(record) => Ok(self.fetch_ttml(&record.lyrics_url)?.map(Into::into)),
             None => Ok(None),
         }
     }

@@ -1,7 +1,7 @@
 use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
-    providers::{LyricsProvider, ProviderResult, http::Http},
+    providers::{LyricsProvider, ProviderLyrics, ProviderResult, http::Http},
     types::{Lyrics, LyricsKind},
 };
 use nd_pdk::lyrics::TrackInfo;
@@ -118,7 +118,7 @@ impl LyricsProvider for Lrclib {
         &self,
         track: &TrackInfo,
         cfg: &PluginConfig,
-    ) -> ProviderResult<Option<Lyrics>> {
+    ) -> ProviderResult<Option<ProviderLyrics>> {
         let preferred = preferred_over_plain(cfg);
 
         let plain_fallback = match self
@@ -126,7 +126,7 @@ impl LyricsProvider for Lrclib {
             .and_then(|record| pick_text(record, cfg))
         {
             Some(plain @ Lyrics::Plain(_)) if !preferred.is_empty() => Some(plain),
-            Some(lyrics) => return Ok(Some(lyrics)),
+            Some(lyrics) => return Ok(Some(lyrics.into())),
             None => None,
         };
 
@@ -146,7 +146,7 @@ impl LyricsProvider for Lrclib {
                 None => pick_text(record, cfg),
             });
 
-        Ok(found.or(plain_fallback))
+        Ok(found.or(plain_fallback).map(Into::into))
     }
 }
 

@@ -1,4 +1,5 @@
 use crate::format::elrc;
+use crate::types::Word;
 use flate2::read::ZlibDecoder;
 use regex::Regex;
 use std::io::Read;
@@ -47,12 +48,12 @@ fn convert(krc: &str) -> String {
         };
 
         let start: i64 = caps[1].parse().unwrap_or(0);
-        let words: Vec<elrc::Word> = word_re
+        let words: Vec<Word> = word_re
             .captures_iter(&caps[2])
             .map(|word| {
                 let offset: i64 = word[1].parse().unwrap_or(0);
                 let duration: i64 = word[2].parse().unwrap_or(0);
-                elrc::Word {
+                Word {
                     text: word[3].to_string(),
                     start_ms: start + offset,
                     end_ms: start + offset + duration,

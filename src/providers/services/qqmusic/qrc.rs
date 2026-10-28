@@ -8,6 +8,7 @@
 //! after the word it belongs to.
 
 use crate::format::{elrc, lrc};
+use crate::types::Word;
 use flate2::read::ZlibDecoder;
 use regex::Regex;
 use std::io::Read;
@@ -85,10 +86,10 @@ pub fn decrypt(hex: &str) -> Result<String, String> {
 
 struct QrcLine {
     start_ms: u64,
-    words: Vec<Word>,
+    words: Vec<QrcWord>,
 }
 
-struct Word {
+struct QrcWord {
     text: String,
     start_ms: u64,
     duration_ms: u64,
@@ -98,10 +99,10 @@ pub fn to_enhanced_lrc(content: &str) -> String {
     let mut out = Vec::new();
 
     for line in parse_lines(content) {
-        let words: Vec<elrc::Word> = line
+        let words: Vec<Word> = line
             .words
             .iter()
-            .map(|word| elrc::Word {
+            .map(|word| Word {
                 text: word.text.clone(),
                 start_ms: word.start_ms as i64,
                 end_ms: (word.start_ms + word.duration_ms) as i64,
@@ -151,7 +152,7 @@ fn parse_lines(content: &str) -> Vec<QrcLine> {
             let whole = m.get(0).unwrap();
             let text = body[cursor..whole.start()].to_string();
             cursor = whole.end();
-            words.push(Word {
+            words.push(QrcWord {
                 text,
                 start_ms: m[1].parse().unwrap_or(0),
                 duration_ms: m[2].parse().unwrap_or(0),

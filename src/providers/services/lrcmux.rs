@@ -2,8 +2,8 @@ use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
     format::{elrc, lrc},
-    providers::{LyricsProvider, ProviderResult, error::ProviderError, http::Http},
-    types::{Lyrics, LyricsKind},
+    providers::{LyricsProvider, ProviderLyrics, ProviderResult, error::ProviderError, http::Http},
+    types::{self, Lyrics, LyricsKind},
 };
 use nd_pdk::lyrics::TrackInfo;
 use serde::Deserialize;
@@ -121,7 +121,7 @@ impl LyricsProvider for Lrcmux {
         &self,
         track: &TrackInfo,
         cfg: &PluginConfig,
-    ) -> ProviderResult<Option<Lyrics>> {
+    ) -> ProviderResult<Option<ProviderLyrics>> {
         if !track.has_artist() {
             return Err(ProviderError::other("track has no artist"));
         }
@@ -148,7 +148,7 @@ impl LyricsProvider for Lrcmux {
             )));
         }
 
-        Ok(pick_lyrics(response, &cfg.lyrics_type_priority))
+        Ok(pick_lyrics(response, &cfg.lyrics_type_priority).map(Into::into))
     }
 }
 
@@ -185,11 +185,11 @@ fn restrict_sources(configured: Option<&str>) -> Option<String> {
     Some(picked.join(","))
 }
 
-fn timed_words(line: &Line, words: &[Word]) -> Vec<elrc::Word> {
+fn timed_words(line: &Line, words: &[Word]) -> Vec<types::Word> {
     words
         .iter()
         .enumerate()
-        .map(|(i, w)| elrc::Word {
+        .map(|(i, w)| types::Word {
             text: w.text.clone(),
             start_ms: w.start,
             end_ms: w

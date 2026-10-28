@@ -1,18 +1,18 @@
 use crate::{
-    config::ProviderParams,
+    config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
-    providers::{LyricsProvider, error::ProviderError, http::Http},
-    types::LyricsKind,
+    providers::{
+        LyricsProvider, ProviderLyrics,
+        error::{ProviderError, ProviderResult},
+        http::Http,
+    },
+    types::{Lyrics, LyricsKind},
 };
+use nd_pdk::lyrics::TrackInfo;
 use serde::Deserialize;
 
 const BASE_URL: &str = "https://unison.boidu.dev";
 
-// todo(@Suya1671): investigate actually parsing using the `success` field,
-// Currently not doing as serde can't tag using a boolean for some reason.
-//
-// Closest option is https://docs.rs/serde-bool/latest/serde_bool,
-// but that's another dependency.
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 pub enum Record {
@@ -29,11 +29,10 @@ pub enum Record {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-// abridged, see https://unison.betterlyrics.org/docs for full API.
 pub struct LyricsData {
     pub format: LyricsFormat,
     pub sync_type: SyncType,
-    pub album: String,
+    pub album: Option<String>,
     pub lyrics: String,
 }
 
@@ -67,8 +66,6 @@ impl Unison {
 
 impl LyricsProvider for Unison {
     fn supported_kinds(&self) -> &'static [LyricsKind] {
-        // under https://unison.betterlyrics.org/docs Formats
-        // note(@Suya1671, @J0R6IT0): lrc + richsync => Elrc, https://github.com/J0R6IT0/navidrome-lyrics-plugin/pull/48#discussion_r4388801391
         &[
             LyricsKind::Ttml,
             LyricsKind::Lrc,
@@ -79,12 +76,12 @@ impl LyricsProvider for Unison {
 
     fn fetch_lyrics(
         &self,
-        track: &nd_pdk::lyrics::TrackInfo,
-        cfg: &crate::config::PluginConfig,
-    ) -> crate::providers::error::ProviderResult<Option<crate::types::Lyrics>> {
+        track: &TrackInfo,
+        cfg: &PluginConfig,
+    ) -> ProviderResult<Option<ProviderLyrics>> {
         let mut request = Http::get(format!("{BASE_URL}/lyrics"))
             .param("song", &track.title)
-            .param("artist", track.all_artists())
+            .param("artist", track.all_artists(", "))
             .param("duration", track.duration.to_string());
 
         if cfg.require_album_match {
@@ -110,20 +107,17 @@ impl LyricsProvider for Unison {
             }
         };
 
-        if cfg.require_album_match && data.album != track.album {
+        if cfg.require_album_match && !track.matches_album(data.album.as_deref().unwrap_or("")) {
             return Ok(None);
         }
 
         let lyrics = match data.format {
-            LyricsFormat::Ttml => crate::types::Lyrics::Ttml(data.lyrics),
-            // ref: https://github.com/J0R6IT0/navidrome-lyrics-plugin/pull/48#discussion_r4388801391
-            LyricsFormat::Lrc if data.sync_type == SyncType::Rich => {
-                crate::types::Lyrics::Elrc(data.lyrics)
-            }
-            LyricsFormat::Lrc => crate::types::Lyrics::Lrc(data.lyrics),
-            LyricsFormat::Plain => crate::types::Lyrics::Plain(data.lyrics),
+            LyricsFormat::Ttml => Lyrics::Ttml(data.lyrics),
+            LyricsFormat::Lrc if data.sync_type == SyncType::Rich => Lyrics::Elrc(data.lyrics),
+            LyricsFormat::Lrc => Lyrics::Lrc(data.lyrics),
+            LyricsFormat::Plain => Lyrics::Plain(data.lyrics),
         };
 
-        Ok(Some(lyrics))
+        Ok(Some(lyrics.into()))
     }
 }

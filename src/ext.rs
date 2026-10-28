@@ -78,7 +78,7 @@ pub trait TrackInfoExt {
     fn label(&self) -> String;
     fn has_artist(&self) -> bool;
     fn first_artist(&self) -> Option<&str>;
-    fn all_artists(&self) -> String;
+    fn all_artists(&self, separator: &str) -> String;
     fn duration(&self) -> Duration;
     fn clean_title(&self) -> String;
     fn matches_duration(&self, other: Duration, tolerance: Duration) -> bool;
@@ -98,12 +98,12 @@ impl TrackInfoExt for TrackInfo {
         self.artists.first().map(|a| a.name.as_str())
     }
 
-    fn all_artists(&self) -> String {
+    fn all_artists(&self, separator: &str) -> String {
         self.artists
             .iter()
             .map(|a| a.name.as_str())
             .collect::<Vec<_>>()
-            .join(" ")
+            .join(separator)
     }
 
     fn duration(&self) -> Duration {

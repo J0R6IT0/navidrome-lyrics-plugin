@@ -35,7 +35,7 @@ impl BiniLyrics {
     fn track_lookup(&self, track: &TrackInfo) -> ProviderResult<Option<Record>> {
         let response = Http::get(BASE_URL)
             .param("track", track.title.as_str())
-            .param("artist", track.all_artists())
+            .param("artist", track.all_artists(" "))
             // Album is not enforced server-side.
             .param("album", track.album.as_str())
             .param("duration", track.duration().as_secs().to_string())

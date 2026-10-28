@@ -10,8 +10,6 @@ use std::time::Duration;
 
 const BASE_URL: &str = "https://lrc.red";
 
-const SUPPORTED_KINDS: &[LyricsKind] = &[LyricsKind::Ttml, LyricsKind::Lyricsfile, LyricsKind::Lrc];
-
 #[derive(Debug, Deserialize)]
 struct SearchResponse {
     #[serde(default)]
@@ -54,11 +52,7 @@ impl LrcRed {
     }
 
     fn fetch_file(&self, isrc: &str, cfg: &PluginConfig) -> ProviderResult<Option<Lyrics>> {
-        for kind in cfg
-            .lyrics_type_priority
-            .iter()
-            .filter(|k| SUPPORTED_KINDS.contains(k))
-        {
+        for kind in &cfg.lyrics_type_priority {
             let (extension, wrap): (&str, fn(String) -> Lyrics) = match kind {
                 LyricsKind::Ttml => ("ttml", Lyrics::Ttml),
                 LyricsKind::Lyricsfile => ("lyricsfile.yaml", Lyrics::Lyricsfile),
@@ -87,7 +81,7 @@ impl LrcRed {
 
 impl LyricsProvider for LrcRed {
     fn supported_kinds(&self) -> &'static [LyricsKind] {
-        SUPPORTED_KINDS
+        &[LyricsKind::Ttml, LyricsKind::Lyricsfile, LyricsKind::Lrc]
     }
 
     fn fetch_lyrics(

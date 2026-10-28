@@ -202,6 +202,14 @@ impl Orchestrator<'_> {
 
         info!("trying provider '{}'", label);
         match provider.fetch_lyrics(self.track, self.cfg) {
+            Ok(Some(fetched)) if !is_wanted(self.cfg, &fetched.lyrics) => {
+                info!(
+                    "provider '{}' returned unwanted {} lyrics, skipping",
+                    label,
+                    fetched.lyrics.kind().slug()
+                );
+                ProviderFetch::Empty
+            }
             Ok(Some(mut fetched)) => {
                 fetched.lyrics.sanitize(self.cfg);
                 if fetched.lyrics.is_empty() {
@@ -259,6 +267,10 @@ impl Orchestrator<'_> {
     }
 }
 
+fn is_wanted(cfg: &PluginConfig, lyrics: &Lyrics) -> bool {
+    matches!(lyrics, Lyrics::Instrumental) || cfg.wants(lyrics.kind())
+}
+
 fn outcome_without_lyrics(had_error: bool) -> Outcome {
     if had_error {
         Outcome::ProviderError
@@ -285,17 +297,63 @@ fn provider_label(name: &str, params: &[(&'static str, String)]) -> String {
 mod tests {
     use super::*;
 
+    #[track_caller]
+    fn check_wanted(priority: &[LyricsKind], lyrics: Lyrics, expected: bool) {
+        let cfg = PluginConfig {
+            lyrics_type_priority: priority.to_vec(),
+            ..PluginConfig::default()
+        };
+
+        assert_eq!(
+            is_wanted(&cfg, &lyrics),
+            expected,
+            "{lyrics:?} with {priority:?}"
+        );
+    }
+
+    #[track_caller]
+    fn check_label(name: &str, params: &[(&'static str, &str)], expected: &str) {
+        let params: Vec<_> = params.iter().map(|&(k, v)| (k, v.to_string())).collect();
+
+        assert_eq!(provider_label(name, &params), expected);
+    }
+
+    #[test]
+    fn enabled_lyrics_types_are_wanted() {
+        let priority = [LyricsKind::Ttml, LyricsKind::Lrc];
+        check_wanted(&priority, Lyrics::Ttml(String::new()), true);
+        check_wanted(&priority, Lyrics::Lrc(String::new()), true);
+    }
+
+    #[test]
+    fn disabled_lyrics_types_are_not_wanted() {
+        let priority = [LyricsKind::Ttml];
+        check_wanted(&priority, Lyrics::Lrc(String::new()), false);
+        check_wanted(&priority, Lyrics::Plain(String::new()), false);
+    }
+
+    #[test]
+    fn instrumental_is_always_wanted() {
+        check_wanted(&[LyricsKind::Ttml], Lyrics::Instrumental, true);
+        check_wanted(&[], Lyrics::Instrumental, true);
+    }
+
     #[test]
     fn provider_without_params_label_has_only_name() {
-        assert_eq!(provider_label("kugou", &[]), "kugou");
+        check_label("kugou", &[], "kugou");
     }
 
     #[test]
     fn provider_label_includes_params() {
-        let params = [("baseUrl", "http://localhost:7592".to_string())];
-        assert_eq!(
-            provider_label("lrclib", &params),
-            "lrclib(baseUrl=http://localhost:7592)"
+        check_label(
+            "lrclib",
+            &[("baseUrl", "http://localhost:7592")],
+            "lrclib(baseUrl=http://localhost:7592)",
+        );
+        check_label(
+            "lrcmux",
+            &[("baseUrl", "http://localhost"), ("sources", "lrclib")],
+            "lrcmux(baseUrl=http://localhost, sources=lrclib)",
         );
     }
 }

@@ -5,6 +5,7 @@
 //! parameters seem to not be required at all. If something break they should be
 //! added back to see if that's the reason.
 
+use super::ChineseTranslation;
 use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
@@ -14,6 +15,7 @@ use crate::{
 };
 use extism_pdk::{info, warn};
 use nd_pdk::lyrics::TrackInfo;
+use regex::Regex;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::time::Duration;
 
@@ -54,14 +56,17 @@ struct LyricParam {
     song_id: u64,
     qrc: u32,
     crypt: u32,
+    /// With `1` the response also carries the translation, if there is one.
+    trans: u32,
 }
 
 impl LyricParam {
-    fn new(song: &Song) -> Self {
+    fn new(song: &Song, translation: bool) -> Self {
         Self {
             song_id: song.id,
             qrc: 1,
             crypt: 1,
+            trans: translation.into(),
         }
     }
 }
@@ -128,13 +133,24 @@ struct Album {
 struct LyricData {
     #[serde(default)]
     lyric: String,
+    #[serde(default)]
+    trans: String,
 }
 
-pub struct QQMusic;
+struct SongLyrics {
+    content: String,
+    translation: Option<String>,
+}
+
+pub struct QQMusic {
+    translation: ChineseTranslation,
+}
 
 impl QQMusic {
-    pub fn create(_params: &ProviderParams) -> Box<dyn LyricsProvider> {
-        Box::new(Self)
+    pub fn create(params: &ProviderParams) -> Box<dyn LyricsProvider> {
+        Box::new(Self {
+            translation: ChineseTranslation::from_params(params),
+        })
     }
 
     fn search(&self, track: &TrackInfo) -> ProviderResult<Vec<Song>> {
@@ -158,8 +174,8 @@ impl QQMusic {
         )
     }
 
-    fn get(&self, song: &Song) -> ProviderResult<Option<String>> {
-        let param = LyricParam::new(song);
+    fn get(&self, song: &Song, translation: bool) -> ProviderResult<Option<SongLyrics>> {
+        let param = LyricParam::new(song, translation);
         let data: LyricData = with_fallback(
             "lyric",
             || self.request(LITE_URL, LYRIC_MODULE, LYRIC_METHOD, &param),
@@ -183,16 +199,18 @@ impl QQMusic {
             }
         };
 
-        let content = qrc::extract_lyric_content(&xml);
-
-        if content.is_none() {
+        let Some(content) = qrc::extract_lyric_content(&xml) else {
             warn!(
                 "qqmusic: the decrypted payload for song {} carries no LyricContent",
                 song.id
             );
-        }
+            return Ok(None);
+        };
 
-        Ok(content)
+        Ok(Some(SongLyrics {
+            content,
+            translation: decrypt_translation(song, &data.trans),
+        }))
     }
 
     fn request<P: Serialize, T: DeserializeOwned>(
@@ -240,6 +258,10 @@ impl LyricsProvider for QQMusic {
         &[LyricsKind::Lrc, LyricsKind::Elrc]
     }
 
+    fn log_params(&self) -> Vec<(&'static str, String)> {
+        self.translation.log_params()
+    }
+
     fn fetch_lyrics(
         &self,
         track: &TrackInfo,
@@ -261,8 +283,11 @@ impl LyricsProvider for QQMusic {
             None => return Ok(None),
         };
 
-        let content = match self.get(&song)? {
-            Some(content) => content,
+        let SongLyrics {
+            content,
+            translation,
+        } = match self.get(&song, self.translation.wanted(cfg))? {
+            Some(lyrics) => lyrics,
             None => return Ok(None),
         };
 
@@ -279,7 +304,10 @@ impl LyricsProvider for QQMusic {
                     let elrc = qrc::to_enhanced_lrc(&content);
 
                     if !elrc.trim().is_empty() {
-                        return Ok(Some(Lyrics::Elrc(elrc).into()));
+                        return Ok(Some(
+                            self.translation
+                                .add(cfg, Lyrics::Elrc(elrc), || translation),
+                        ));
                     }
                 }
 
@@ -291,7 +319,9 @@ impl LyricsProvider for QQMusic {
                     };
 
                     if !lrc.trim().is_empty() {
-                        return Ok(Some(Lyrics::Lrc(lrc).into()));
+                        return Ok(Some(
+                            self.translation.add(cfg, Lyrics::Lrc(lrc), || translation),
+                        ));
                     }
                 }
 
@@ -301,6 +331,32 @@ impl LyricsProvider for QQMusic {
 
         Ok(None)
     }
+}
+
+fn decrypt_translation(song: &Song, hex: &str) -> Option<String> {
+    if hex.is_empty() {
+        return None;
+    }
+
+    match qrc::decrypt(hex) {
+        Ok(lrc) => Some(strip_untranslated(&lrc)),
+        Err(e) => {
+            warn!(
+                "qqmusic: failed to decrypt the translation for song {}: {e}",
+                song.id
+            );
+            None
+        }
+    }
+}
+
+fn strip_untranslated(lrc: &str) -> String {
+    let placeholder = Regex::new(r"^(?:\[[^\]]*\])+\s*//\s*$").unwrap();
+
+    lrc.lines()
+        .filter(|line| !placeholder.is_match(line.trim()))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 fn with_fallback<T>(

@@ -1,5 +1,4 @@
-use std::time::Duration;
-
+use super::ChineseTranslation;
 use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
@@ -10,6 +9,7 @@ use crate::{
 use extism_pdk::info;
 use nd_pdk::lyrics::TrackInfo;
 use serde::Deserialize;
+use std::time::Duration;
 
 mod yrc;
 
@@ -47,6 +47,8 @@ struct Album {
 struct LyricsResponse {
     lrc: Option<LyricContent>,
     yrc: Option<LyricContent>,
+    tlyric: Option<LyricContent>,
+    ytlrc: Option<LyricContent>,
     #[serde(default)]
     pure_music: bool,
 }
@@ -66,11 +68,15 @@ impl LyricContent {
     }
 }
 
-pub struct NetEase;
+pub struct NetEase {
+    translation: ChineseTranslation,
+}
 
 impl NetEase {
-    pub fn create(_params: &ProviderParams) -> Box<dyn LyricsProvider> {
-        Box::new(Self)
+    pub fn create(params: &ProviderParams) -> Box<dyn LyricsProvider> {
+        Box::new(Self {
+            translation: ChineseTranslation::from_params(params),
+        })
     }
 
     fn search(&self, track: &TrackInfo) -> ProviderResult<SearchResponse> {
@@ -123,6 +129,10 @@ impl LyricsProvider for NetEase {
         &[LyricsKind::Lrc, LyricsKind::Elrc]
     }
 
+    fn log_params(&self) -> Vec<(&'static str, String)> {
+        self.translation.log_params()
+    }
+
     fn fetch_lyrics(
         &self,
         track: &TrackInfo,
@@ -164,14 +174,20 @@ impl LyricsProvider for NetEase {
                         let elrc = yrc::to_enhanced_lrc(raw);
 
                         if !elrc.trim().is_empty() {
-                            return Ok(Some(Lyrics::Elrc(elrc).into()));
+                            return Ok(Some(self.translation.add(cfg, Lyrics::Elrc(elrc), || {
+                                LyricContent::text(&response.ytlrc)
+                                    .or(LyricContent::text(&response.tlyric))
+                                    .map(strip_metadata)
+                            })));
                         }
                     }
                 }
 
                 LyricsKind::Lrc => {
                     if let Some(text) = lrc.take_if(|text| lrc::is_synced(text)) {
-                        return Ok(Some(Lyrics::Lrc(text).into()));
+                        return Ok(Some(self.translation.add(cfg, Lyrics::Lrc(text), || {
+                            LyricContent::text(&response.tlyric).map(strip_metadata)
+                        })));
                     }
                 }
 

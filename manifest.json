@@ -171,6 +171,11 @@
                   { "const": "und-Hang", "title": "Hangul" },
                   { "const": "und-Kana", "title": "Katakana" }
                 ]
+              },
+              "includeChineseTranslation": {
+                "type": "boolean",
+                "title": "Include chinese translation (returned as TTML)",
+                "default": false
               }
             },
             "required": [
@@ -566,6 +571,19 @@
                           }
                         }
                       ]
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/includeChineseTranslation",
+                      "rule": {
+                        "effect": "SHOW",
+                        "condition": {
+                          "scope": "#/properties/provider",
+                          "schema": {
+                            "enum": ["kugou", "netease", "qqmusic"]
+                          }
+                        }
+                      }
                     }
                   ]
                 }

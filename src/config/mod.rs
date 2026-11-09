@@ -151,6 +151,11 @@ impl PluginConfig {
     }
 }
 
+/// Read on its own to avoid loading the whole config on every playback event.
+pub fn fetch_on_play() -> Result<bool> {
+    get_bool("fetchOnPlay", false)
+}
+
 fn resolve_instrumental_text() -> Result<Option<String>> {
     Ok(match get_raw_string("instrumentalText")? {
         Some(text) if text.trim().is_empty() => None,
@@ -217,8 +222,10 @@ fn resolve_duration_tolerance() -> Result<Duration> {
         DEFAULT_DURATION_TOLERANCE.as_secs_f64(),
     )?;
 
-    let duration =
-        Duration::from_secs_f64(raw).clamp(MIN_DURATION_TOLERANCE, MAX_DURATION_TOLERANCE);
+    let duration = Duration::from_secs_f64(raw.clamp(
+        MIN_DURATION_TOLERANCE.as_secs_f64(),
+        MAX_DURATION_TOLERANCE.as_secs_f64(),
+    ));
 
     if duration.as_secs_f64() != raw {
         warn!("durationToleranceSeconds {raw} is out of range, clamping to {duration:?}");

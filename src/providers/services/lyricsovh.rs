@@ -1,7 +1,7 @@
 use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
-    providers::{LyricsProvider, ProviderResult, error::ProviderError, http::Http},
+    providers::{LyricsProvider, ProviderLyrics, ProviderResult, error::ProviderError, http::Http},
     types::{Lyrics, LyricsKind},
 };
 use nd_pdk::lyrics::TrackInfo;
@@ -62,13 +62,13 @@ impl LyricsProvider for LyricsOvh {
         &self,
         track: &TrackInfo,
         _cfg: &PluginConfig,
-    ) -> ProviderResult<Option<Lyrics>> {
+    ) -> ProviderResult<Option<ProviderLyrics>> {
         if !track.has_artist() {
             return Err(ProviderError::other("track has no artist"));
         }
 
         Ok(self
             .get(track)?
-            .map(|response| Lyrics::Plain(response.lyrics)))
+            .map(|response| Lyrics::Plain(response.lyrics).into()))
     }
 }

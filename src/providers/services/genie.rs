@@ -2,7 +2,7 @@ use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
     format::lrc,
-    providers::{LyricsProvider, ProviderResult, error::ProviderError, http::Http},
+    providers::{LyricsProvider, ProviderLyrics, ProviderResult, error::ProviderError, http::Http},
     types::{Lyrics, LyricsKind},
 };
 use nd_pdk::lyrics::TrackInfo;
@@ -77,7 +77,7 @@ impl LyricsProvider for Genie {
         &self,
         track: &TrackInfo,
         cfg: &PluginConfig,
-    ) -> ProviderResult<Option<Lyrics>> {
+    ) -> ProviderResult<Option<ProviderLyrics>> {
         if !track.has_artist() {
             return Err(ProviderError::other("track has no artist"));
         }
@@ -106,7 +106,7 @@ impl LyricsProvider for Genie {
                 continue;
             };
             if !lrc.trim().is_empty() {
-                return Ok(Some(Lyrics::Lrc(lrc)));
+                return Ok(Some(Lyrics::Lrc(lrc).into()));
             }
         }
 

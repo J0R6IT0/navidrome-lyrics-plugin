@@ -356,7 +356,7 @@ fn parse_line(line: &str) -> Option<(Option<f64>, &str)> {
     Some((parse_time_tag(content), text))
 }
 
-fn parse_time_tag(content: &str) -> Option<f64> {
+pub(crate) fn parse_time_tag(content: &str) -> Option<f64> {
     let mut fields = content.split(':');
     let (first, second, third) = (fields.next()?, fields.next()?, fields.next());
     if fields.next().is_some() {

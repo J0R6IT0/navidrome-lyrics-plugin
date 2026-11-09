@@ -1,7 +1,7 @@
 {
   "name": "Lyrics",
   "author": "Jorge Pardo",
-  "version": "8.1.0",
+  "version": "9.0.0",
   "description": "Fetch lyrics from multiple sources",
   "website": "https://github.com/J0R6IT0/navidrome-lyrics-plugin",
 
@@ -20,6 +20,16 @@
     "kvstore": {
       "reason": "To cache lyrics persistently across restarts.",
       "maxSize": "1000MB"
+    },
+    "users": {
+      "reason": "To fetch lyrics for the songs played by the selected users. Only used when fetch on play is enabled."
+    },
+    "subsonicapi": {
+      "reason": "To request lyrics through Navidrome when a song starts playing."
+    },
+    "taskqueue": {
+      "reason": "To fetch lyrics for played songs in the background.",
+      "maxConcurrency": 1
     }
   },
 
@@ -62,6 +72,12 @@
           "default": false
         },
 
+        "fetchOnPlay": {
+          "type": "boolean",
+          "title": "Fetch lyrics when a song starts playing",
+          "default": false
+        },
+
         "providersList": {
           "type": "array",
           "title": "Lyrics providers (use the \"+\" button to add more)",
@@ -83,7 +99,9 @@
                   { "const": "applemusic", "title": "Apple Music" },
                   { "const": "stixoi", "title": "stixoi.info" },
                   { "const": "genie", "title": "Genie Music" },
-                  { "const": "binilyrics", "title": "BiniLyrics" }
+                  { "const": "binilyrics", "title": "BiniLyrics" },
+                  { "const": "lrc.red", "title": "lrc.red" },
+                  { "const": "unison", "title": "Unison" }
                 ]
               },
               "baseUrl": {
@@ -153,6 +171,11 @@
                   { "const": "und-Hang", "title": "Hangul" },
                   { "const": "und-Kana", "title": "Katakana" }
                 ]
+              },
+              "includeChineseTranslation": {
+                "type": "boolean",
+                "title": "Include chinese translation (returned as TTML)",
+                "default": false
               }
             },
             "required": [
@@ -379,6 +402,21 @@
 
         {
           "type": "Group",
+          "label": "Fetch on play",
+          "elements": [
+            {
+              "type": "Label",
+              "text": "Fetch lyrics for every song that starts playing, not only when a client requests them. Lyrics are requested through Navidrome, so the LyricsPriority order is respected. Only playback from the users selected in this plugin's settings is used."
+            },
+            {
+              "type": "Control",
+              "scope": "#/properties/fetchOnPlay"
+            }
+          ]
+        },
+
+        {
+          "type": "Group",
           "label": "Providers",
           "elements": [
             {
@@ -533,6 +571,19 @@
                           }
                         }
                       ]
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/includeChineseTranslation",
+                      "rule": {
+                        "effect": "SHOW",
+                        "condition": {
+                          "scope": "#/properties/provider",
+                          "schema": {
+                            "enum": ["kugou", "netease", "qqmusic"]
+                          }
+                        }
+                      }
                     }
                   ]
                 }

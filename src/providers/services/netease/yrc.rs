@@ -1,4 +1,5 @@
 use crate::format::elrc;
+use crate::types::Word;
 use regex::Regex;
 
 /// YRC lines look like:
@@ -17,12 +18,12 @@ pub fn to_enhanced_lrc(yrc: &str) -> String {
         };
 
         let start: i64 = caps[1].parse().unwrap_or(0);
-        let words: Vec<elrc::Word> = word_re
+        let words: Vec<Word> = word_re
             .captures_iter(&caps[2])
             .map(|word| {
                 let word_start: i64 = word[1].parse().unwrap_or(0);
                 let duration: i64 = word[2].parse().unwrap_or(0);
-                elrc::Word {
+                Word {
                     text: word[3].to_string(),
                     start_ms: word_start,
                     end_ms: word_start + duration,

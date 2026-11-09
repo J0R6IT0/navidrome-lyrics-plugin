@@ -1,7 +1,7 @@
 use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
-    providers::{LyricsProvider, ProviderResult, http::Http},
+    providers::{LyricsProvider, ProviderLyrics, ProviderResult, http::Http},
     types::{Lyrics, LyricsKind},
 };
 use nd_pdk::lyrics::TrackInfo;
@@ -9,6 +9,8 @@ use serde::Deserialize;
 use std::time::Duration;
 
 const BASE_URL: &str = "https://lyrics-api.binimum.org";
+
+const APOSTROPHES: [char; 6] = ['\'', '\u{2018}', '\u{2019}', '\u{02BC}', '`', '\u{00B4}'];
 
 #[derive(Debug, Deserialize)]
 struct SearchResponse {
@@ -35,7 +37,7 @@ impl BiniLyrics {
     fn track_lookup(&self, track: &TrackInfo) -> ProviderResult<Option<Record>> {
         let response = Http::get(BASE_URL)
             .param("track", track.title.as_str())
-            .param("artist", track.all_artists())
+            .param("artist", track.all_artists(" "))
             // Album is not enforced server-side.
             .param("album", track.album.as_str())
             .param("duration", track.duration().as_secs().to_string())
@@ -55,7 +57,9 @@ impl BiniLyrics {
         let query = match track.first_artist() {
             Some(artist) => format!("{} {}", artist, track.clean_title()),
             None => track.clean_title(),
-        };
+        }
+        // Search misses words with an apostrophe inside, like "don't".
+        .replace(APOSTROPHES, "");
 
         let response = Http::get(BASE_URL).param("q", query).send()?;
 
@@ -91,11 +95,11 @@ impl LyricsProvider for BiniLyrics {
         &self,
         track: &TrackInfo,
         cfg: &PluginConfig,
-    ) -> ProviderResult<Option<Lyrics>> {
+    ) -> ProviderResult<Option<ProviderLyrics>> {
         if track.has_artist()
             && let Some(record) = self.track_lookup(track)?.filter(|r| matches(track, cfg, r))
         {
-            return self.fetch_ttml(&record.lyrics_url);
+            return Ok(self.fetch_ttml(&record.lyrics_url)?.map(Into::into));
         }
 
         match self
@@ -103,7 +107,7 @@ impl LyricsProvider for BiniLyrics {
             .into_iter()
             .find(|record| matches(track, cfg, record))
         {
-            Some(record) => self.fetch_ttml(&record.lyrics_url),
+            Some(record) => Ok(self.fetch_ttml(&record.lyrics_url)?.map(Into::into)),
             None => Ok(None),
         }
     }

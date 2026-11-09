@@ -1,7 +1,7 @@
 use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
-    providers::{LyricsProvider, ProviderResult, error::ProviderError, http::Http},
+    providers::{LyricsProvider, ProviderLyrics, ProviderResult, error::ProviderError, http::Http},
     types::{Lyrics, LyricsKind},
 };
 use nd_pdk::lyrics::TrackInfo;
@@ -109,7 +109,7 @@ impl LyricsProvider for Stixoi {
         &self,
         track: &TrackInfo,
         _cfg: &PluginConfig,
-    ) -> ProviderResult<Option<Lyrics>> {
+    ) -> ProviderResult<Option<ProviderLyrics>> {
         let title = track.clean_title();
         if title.is_empty() {
             return Ok(None);
@@ -124,13 +124,13 @@ impl LyricsProvider for Stixoi {
         };
 
         if let Some(lyrics) = self.find_lyrics(&combined, &title, artist)? {
-            return Ok(Some(Lyrics::Plain(lyrics)));
+            return Ok(Some(Lyrics::Plain(lyrics).into()));
         }
 
         if combined != title
             && let Some(lyrics) = self.find_lyrics(&title, &title, artist)?
         {
-            return Ok(Some(Lyrics::Plain(lyrics)));
+            return Ok(Some(Lyrics::Plain(lyrics).into()));
         }
 
         Ok(None)

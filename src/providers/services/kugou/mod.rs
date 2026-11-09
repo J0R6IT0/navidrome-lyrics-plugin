@@ -1,5 +1,4 @@
-use std::time::Duration;
-
+use super::ChineseTranslation;
 use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
@@ -11,6 +10,7 @@ use base64::{Engine, engine::general_purpose::STANDARD};
 use extism_pdk::{info, warn};
 use nd_pdk::lyrics::TrackInfo;
 use serde::Deserialize;
+use std::time::Duration;
 
 mod krc;
 
@@ -65,11 +65,15 @@ struct DownloadResponse {
     content: String,
 }
 
-pub struct KuGou;
+pub struct KuGou {
+    translation: ChineseTranslation,
+}
 
 impl KuGou {
-    pub fn create(_params: &ProviderParams) -> Box<dyn LyricsProvider> {
-        Box::new(Self)
+    pub fn create(params: &ProviderParams) -> Box<dyn LyricsProvider> {
+        Box::new(Self {
+            translation: ChineseTranslation::from_params(params),
+        })
     }
 
     fn search_song(&self, track: &TrackInfo) -> ProviderResult<SongSearchResponse> {
@@ -137,11 +141,33 @@ impl KuGou {
             .decode(&encoded.content)
             .map_err(|e| ProviderError::other(format!("failed to decode lyrics content: {e}")))
     }
+
+    fn krc_translation(&self, candidate: &Candidate) -> Option<String> {
+        let krc = self
+            .download(candidate, "krc")
+            .map_err(|e| e.to_string())
+            .and_then(|bytes| krc::decrypt(&bytes))
+            .inspect_err(|e| warn!("kugou: failed to get the krc lyrics for the translation: {e}"))
+            .ok()?;
+
+        parse_translation(&krc)
+    }
+}
+
+fn parse_translation(krc: &str) -> Option<String> {
+    krc::translation(krc)
+        .inspect_err(|e| warn!("kugou: ignoring the translation: {e}"))
+        .ok()
+        .flatten()
 }
 
 impl LyricsProvider for KuGou {
     fn supported_kinds(&self) -> &'static [LyricsKind] {
         &[LyricsKind::Lrc, LyricsKind::Elrc]
+    }
+
+    fn log_params(&self) -> Vec<(&'static str, String)> {
+        self.translation.log_params()
     }
 
     fn fetch_lyrics(
@@ -187,11 +213,17 @@ impl LyricsProvider for KuGou {
             match kind {
                 LyricsKind::Elrc if candidate.krctype != 0 => {
                     let bytes = self.download(&candidate, "krc")?;
-                    match krc::to_enhanced_lrc(&bytes) {
-                        Ok(elrc) if !elrc.trim().is_empty() => {
-                            return Ok(Some(Lyrics::Elrc(elrc).into()));
+                    match krc::decrypt(&bytes) {
+                        Ok(krc) => {
+                            let elrc = krc::to_enhanced_lrc(&krc);
+                            if !elrc.trim().is_empty() {
+                                return Ok(Some(self.translation.add(
+                                    cfg,
+                                    Lyrics::Elrc(elrc),
+                                    || parse_translation(&krc),
+                                )));
+                            }
                         }
-                        Ok(_) => {}
                         Err(e) => warn!("kugou: failed to decode krc lyrics: {e}"),
                     }
                 }
@@ -207,7 +239,11 @@ impl LyricsProvider for KuGou {
                         return Ok(Some(Lyrics::Instrumental.into()));
                     }
                     if !lrc.trim().is_empty() {
-                        return Ok(Some(Lyrics::Lrc(lrc).into()));
+                        return Ok(Some(self.translation.add(cfg, Lyrics::Lrc(lrc), || {
+                            (candidate.krctype != 0)
+                                .then(|| self.krc_translation(&candidate))
+                                .flatten()
+                        })));
                     }
                 }
 

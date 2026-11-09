@@ -11,6 +11,10 @@ impl ProviderParams {
     pub fn get(&self, key: &str) -> Option<&str> {
         self.0.get(key).map(String::as_str)
     }
+
+    pub fn flag(&self, key: &str) -> bool {
+        self.get(key) == Some("true")
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -213,6 +217,18 @@ mod tests {
             r#"[{"provider":"lrcmux","sources":["lrclib"," kugou ",""]}]"#,
             Some(vec![entry("lrcmux", &[("sources", "lrclib,kugou")])]),
         );
+    }
+
+    #[test]
+    fn checkbox_params_are_flags() {
+        let providers = parse_providers(
+            r#"[{"provider":"kugou","on":true,"off":false},{"provider":"netease"}]"#,
+        )
+        .unwrap();
+
+        assert!(providers[0].params.flag("on"));
+        assert!(!providers[0].params.flag("off"));
+        assert!(!providers[1].params.flag("on"));
     }
 
     #[test]

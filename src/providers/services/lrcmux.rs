@@ -10,15 +10,7 @@ use serde::Deserialize;
 use std::time::Duration;
 
 const DEFAULT_BASE_URL: &str = "https://api.lrcmux.dev";
-
-const KNOWN_SOURCES: &[&str] = &[
-    "genius",
-    "kugou",
-    "lrclib",
-    "musixmatch",
-    "netease",
-    "ytmusic",
-];
+const KNOWN_SOURCES: &[&str] = &["deezer", "genius", "kugou", "lrclib", "netease", "ytmusic"];
 
 #[derive(Deserialize)]
 struct JsonResponse {
@@ -39,8 +31,14 @@ struct JsonTrack {
 #[derive(Deserialize)]
 struct JsonMeta {
     level: SyncLevel,
+    source: JsonSource,
     #[serde(default)]
     instrumental: bool,
+}
+
+#[derive(Deserialize)]
+struct JsonSource {
+    id: String,
 }
 
 #[derive(Deserialize, PartialEq, Eq, Clone, Copy)]
@@ -83,20 +81,24 @@ impl Lrcmux {
     }
 
     fn get(&self, track: &TrackInfo) -> ProviderResult<Option<JsonResponse>> {
-        let mut request = Http::get(format!("{}/get", self.base_url))
+        let Some(sources) = &self.sources else {
+            return Ok(None);
+        };
+
+        let response = Http::get(format!("{}/get", self.base_url))
             .param("artist", track.first_artist().unwrap_or_default())
             .param("title", &track.title)
             .param("album", &track.album)
-            .param("duration", track.duration().as_secs().to_string());
-
-        if let Some(sources) = &self.sources {
-            request = request.param("sources", sources);
-        }
-
-        let response = request.send()?;
+            .param("duration", track.duration().as_secs().to_string())
+            .param("sources", sources)
+            .send()?;
 
         match response.status {
-            200 => response.json("get").map(Some),
+            200 => {
+                let response: JsonResponse = response.json("get")?;
+                validate_source(&response.meta.source.id, sources)?;
+                Ok(Some(response))
+            }
             404 => Ok(None),
             429 => Err(response.rate_limited()),
             _ => Err(response.unexpected_status("lrcmux")),
@@ -172,17 +174,31 @@ fn pick_lyrics(response: JsonResponse, order: &[LyricsKind]) -> Option<Lyrics> {
     })
 }
 
-fn restrict_sources(configured: Option<&str>) -> Option<String> {
-    let picked: Vec<&str> = configured?
-        .split(',')
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .collect();
-
-    if picked.is_empty() || KNOWN_SOURCES.iter().all(|known| picked.contains(known)) {
-        return None;
+fn validate_source(source: &str, requested_sources: &str) -> ProviderResult<()> {
+    if !KNOWN_SOURCES.contains(&source)
+        || !requested_sources
+            .split(',')
+            .any(|requested| requested == source)
+    {
+        return Err(ProviderError::other("response source was not requested"));
     }
-    Some(picked.join(","))
+    Ok(())
+}
+
+fn restrict_sources(configured: Option<&str>) -> Option<String> {
+    let configured = configured.unwrap_or_default();
+    if configured.split(',').all(|source| source.trim().is_empty()) {
+        return Some(KNOWN_SOURCES.join(","));
+    }
+
+    let mut picked = Vec::new();
+    for source in configured.split(',').map(str::trim) {
+        if KNOWN_SOURCES.contains(&source) && !picked.contains(&source) {
+            picked.push(source);
+        }
+    }
+
+    (!picked.is_empty()).then(|| picked.join(","))
 }
 
 fn timed_words(line: &Line, words: &[Word]) -> Vec<types::Word> {
@@ -254,6 +270,9 @@ mod tests {
             },
             meta: JsonMeta {
                 level,
+                source: JsonSource {
+                    id: "deezer".into(),
+                },
                 instrumental,
             },
             lines,
@@ -331,33 +350,29 @@ mod tests {
         );
     }
 
-    #[test]
-    fn sources_are_unrestricted_when_unset_or_complete() {
-        assert_eq!(restrict_sources(None), None);
-        assert_eq!(restrict_sources(Some("")), None);
-        assert_eq!(restrict_sources(Some(" , ")), None);
+    #[track_caller]
+    fn check_sources(configured: Option<&str>, expected: Option<&str>) {
         assert_eq!(
-            restrict_sources(Some("genius,kugou,lrclib,musixmatch,netease,ytmusic")),
-            None
-        );
-        assert_eq!(
-            restrict_sources(Some(
-                "ytmusic,lrclib,musixmatch,kugou,genius,netease,future"
-            )),
-            None
+            restrict_sources(configured).as_deref(),
+            expected,
+            "sources from {configured:?}"
         );
     }
 
     #[test]
-    fn sources_restrict_when_a_source_is_deselected() {
-        assert_eq!(
-            restrict_sources(Some("genius,kugou,lrclib,musixmatch")),
-            Some("genius,kugou,lrclib,musixmatch".to_string())
-        );
-        assert_eq!(
-            restrict_sources(Some(" musixmatch , kugou ")),
-            Some("musixmatch,kugou".to_string())
-        );
+    fn sources_default_to_an_explicit_allowlist_when_unset_or_blank() {
+        for configured in [None, Some(""), Some(" \t\n "), Some(" , , ")] {
+            check_sources(
+                configured,
+                Some("deezer,genius,kugou,lrclib,netease,ytmusic"),
+            );
+        }
+    }
+
+    #[test]
+    fn all_selected_sources_remain_explicit() {
+        let configured = "deezer,genius,kugou,lrclib,netease,ytmusic";
+        check_sources(Some(configured), Some(configured));
     }
 
     #[test]

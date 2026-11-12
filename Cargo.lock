@@ -238,7 +238,7 @@ dependencies = [
 
 [[package]]
 name = "navidrome-lyrics-plugin"
-version = "9.0.0"
+version = "9.2.0"
 dependencies = [
  "base64 0.23.1",
  "extism-pdk",

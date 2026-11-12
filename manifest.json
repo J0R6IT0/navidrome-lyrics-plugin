@@ -81,7 +81,7 @@
         "providersList": {
           "type": "array",
           "title": "Lyrics providers (use the \"+\" button to add more)",
-          "default": [{ "provider": "lrclib" }, { "provider": "lyrics.ovh" }],
+          "default": [{ "provider": "lrc.red" }, { "provider": "lrclib" }],
           "items": {
             "type": "object",
             "properties": {
@@ -114,20 +114,20 @@
                 "title": "Sources",
                 "uniqueItems": true,
                 "default": [
+                  "deezer",
                   "genius",
                   "kugou",
                   "lrclib",
-                  "musixmatch",
                   "netease",
                   "ytmusic"
                 ],
                 "items": {
                   "type": "string",
                   "oneOf": [
+                    { "const": "deezer", "title": "Deezer" },
                     { "const": "genius", "title": "Genius" },
                     { "const": "kugou", "title": "KuGou" },
                     { "const": "lrclib", "title": "LRCLIB" },
-                    { "const": "musixmatch", "title": "Musixmatch" },
                     { "const": "netease", "title": "NetEase" },
                     { "const": "ytmusic", "title": "YouTube Music" }
                   ]

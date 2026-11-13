@@ -1,5 +1,4 @@
 mod applemusic;
-mod binilyrics;
 mod genie;
 mod kugou;
 mod lrclib;
@@ -12,7 +11,6 @@ mod stixoi;
 mod unison;
 
 pub use applemusic::*;
-pub use binilyrics::*;
 pub use genie::*;
 pub use kugou::*;
 pub use lrclib::*;

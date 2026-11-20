@@ -43,6 +43,15 @@ impl LrcRed {
         // Search misses words with an apostrophe inside, like "don't".
         .replace(APOSTROPHES, "");
 
+        // Search returns nothing when the query contains the standalone word "with"
+        // (e.g. "U2 With Or Without You").
+        // See https://github.com/J0R6IT0/navidrome-lyrics-plugin/issues/56
+        let query = query
+            .split_whitespace()
+            .filter(|word| !word.eq_ignore_ascii_case("with"))
+            .collect::<Vec<_>>()
+            .join(" ");
+
         let response = Http::get(format!("{BASE_URL}/search.json"))
             .param("q", query)
             .send()?;

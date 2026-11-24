@@ -1,6 +1,6 @@
 # Navidrome Lyrics Plugin
 
-A Navidrome plugin for fetching lyrics from multiple sources. Formerly Navidrome LRCLIB Plugin.
+A Navidrome plugin for fetching lyrics from multiple sources.
 
 > [!IMPORTANT]
 > The Navidrome WebUI does not display lyrics from plugins at the moment, you need a third party client in order to see them.
@@ -18,9 +18,9 @@ A Navidrome plugin for fetching lyrics from multiple sources. Formerly Navidrome
 
 Make sure your Navidrome version is at least `v0.63.0`.
 
-1. Download the latest `nd-lyrics.ndp` from the Releases page and place it in your plugins folder.
+1. Download the latest `nd-lyrics.ndp` from the [Releases](https://github.com/J0R6IT0/navidrome-lyrics-plugin/releases) page and place it in your [plugins folder](https://www.navidrome.org/docs/usage/features/plugins/#installing-plugins).
 
-2. Add `nd-lyrics` to the `LyricsPriority` config option. See [here](https://www.navidrome.org/docs/usage/configuration/options/#:~:text=true-,LyricsPriority,-ND_LYRICSPRIORITY).
+2. Add `nd-lyrics` to the `LyricsPriority` config option. For more information check the [Navidrome docs](https://www.navidrome.org/docs/usage/configuration/options/#opt-lyricspriority).
 
 > [!IMPORTANT]
 > The value added to `LyricsPriority` should match the name of the plugin without the extension. If you rename the plugin to `lyrics.ndp`, you should add `lyrics` instead of `nd-lyrics`.

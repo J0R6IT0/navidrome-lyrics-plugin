@@ -338,6 +338,12 @@
           "default": false
         },
 
+        "deleteExistingLyrics": {
+          "type": "boolean",
+          "title": "Delete existing lyrics files of other types while overwriting",
+          "default": false
+        },
+
         "writeToSpecificFolder": {
           "type": "boolean",
           "title": "Write lyrics to a custom path instead of next to each song file.",
@@ -823,6 +829,32 @@
                 "effect": "SHOW",
                 "condition": {
                   "scope": "#/properties/writeLyrics",
+                  "schema": {
+                    "const": true
+                  }
+                }
+              }
+            },
+            {
+              "type": "Control",
+              "scope": "#/properties/deleteExistingLyrics",
+              "rule": {
+                "effect": "SHOW",
+                "condition": {
+                  "scope": "#/properties/overwriteLyrics",
+                  "schema": {
+                    "const": true
+                  }
+                }
+              }
+            },
+            {
+              "type": "Label",
+              "text": "(This reduces clutter when upgrading to a different format, only formats selected above are deleted.)",
+              "rule": {
+                "effect": "SHOW",
+                "condition": {
+                  "scope": "#/properties/overwriteLyrics",
                   "schema": {
                     "const": true
                   }

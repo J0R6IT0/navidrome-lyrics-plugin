@@ -19,6 +19,10 @@ pub fn write(track: &TrackInfo, lyrics: &Lyrics, cfg: &PluginConfig) -> Result<(
         return Ok(());
     }
 
+    if cfg.delete_existing_lyrics {
+        delete_existing_lyrics(track, cfg)?;
+    }
+
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .map_err(|e| LyricsError::new(format!("failed to create lyrics directory: {e}")))?;
@@ -27,6 +31,23 @@ pub fn write(track: &TrackInfo, lyrics: &Lyrics, cfg: &PluginConfig) -> Result<(
     fs::write(&path, lyrics.text(cfg).as_bytes())
         .map_err(|e| LyricsError::new(format!("failed to write lyrics file: {e}")))?;
 
+    Ok(())
+}
+
+fn delete_existing_lyrics(track: &TrackInfo, cfg: &PluginConfig) -> Result<(), LyricsError> {
+    for k in &cfg.lyrics_type_priority {
+        let path = if cfg.write_to_specific_folder {
+            resolve_custom_path(track, *k, cfg)?
+        } else {
+            resolve_sidecar_path(track, *k, cfg)?
+        };
+
+        if path.exists() {
+            fs::remove_file(&path)
+                .map_err(|e| LyricsError::new(format!("failed to delete existing lyrics file: {e}")))?;
+        }
+    }
+    
     Ok(())
 }
 

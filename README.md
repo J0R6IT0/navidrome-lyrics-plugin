@@ -53,6 +53,7 @@ Some of the providers don't host lyrics themselves, they pull them from other we
 | NetEase                                   |                                                                       | lrc,elrc             | Supports Chinese translations                                        |
 | QQ Music                                  |                                                                       | lrc,elrc             | Supports Chinese translations                                        |
 | Apple Music                               |                                                                       | ttml                 | Supports translations and romanization. Requires active subscription |
+| Deezer                                     |                                                                       | plain,lrc,elrc             | Supports translations                                       |
 | stixoi.info                               |                                                                       | plain                | Greek lyrics                                                         |
 | Genie Music                               |                                                                       | lrc                  | Korean lyrics                                                        |
 

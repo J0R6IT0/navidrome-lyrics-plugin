@@ -17,6 +17,7 @@ mod registry;
 mod services;
 
 pub use registry::ProviderRegistry;
+use crate::providers::services::Deezer;
 
 const USER_AGENT: &str = concat!(
     "navidrome-lyrics-plugin/",
@@ -40,6 +41,7 @@ pub fn register_providers(registry: &mut ProviderRegistry) {
     registry.register("binilyrics", BiniLyrics::create);
     registry.register("lrc.red", LrcRed::create);
     registry.register("unison", Unison::create);
+    registry.register("deezer", Deezer::create);
 }
 
 /// Lyrics returned by a provider. Can have optional translation and transliteration

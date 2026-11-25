@@ -10,6 +10,7 @@ mod netease;
 mod qqmusic;
 mod stixoi;
 mod unison;
+mod deezer;
 
 pub use applemusic::*;
 pub use binilyrics::*;
@@ -23,6 +24,7 @@ pub use netease::*;
 pub use qqmusic::*;
 pub use stixoi::*;
 pub use unison::*;
+pub use deezer::*;
 
 use crate::{
     config::{PluginConfig, ProviderParams},

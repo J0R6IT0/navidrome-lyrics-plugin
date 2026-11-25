@@ -101,7 +101,8 @@
                   { "const": "genie", "title": "Genie Music" },
                   { "const": "binilyrics", "title": "BiniLyrics" },
                   { "const": "lrc.red", "title": "lrc.red" },
-                  { "const": "unison", "title": "Unison" }
+                  { "const": "unison", "title": "Unison" },
+                  { "const": "deezer", "title": "Deezer" }
                 ]
               },
               "baseUrl": {
@@ -581,6 +582,19 @@
                           "scope": "#/properties/provider",
                           "schema": {
                             "enum": ["kugou", "netease", "qqmusic"]
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "type": "Control",
+                      "scope": "#/properties/translationLanguage",
+                      "rule": {
+                        "effect": "SHOW",
+                        "condition": {
+                          "scope": "#/properties/provider",
+                          "schema": {
+                            "const": "deezer"
                           }
                         }
                       }

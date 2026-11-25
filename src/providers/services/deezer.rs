@@ -114,7 +114,7 @@ struct WordLine {
 struct SyncedLine {
     line: String,
     #[serde(rename = "lineTranslated")]
-    line_translated: String,
+    line_translated: Option<String>,
     #[serde(rename = "lrcTimestamp")]
     lrc_timestamp: String,
 }
@@ -123,9 +123,9 @@ struct SyncedLine {
 struct LyricsData {
     #[serde(default)]
     text: String,
-    #[serde(rename = "synchronizedWordByWordLines", default)]
+    #[serde(rename = "synchronizedWordByWordLines")]
     word_lines: Option<Vec<WordLine>>,
-    #[serde(rename = "synchronizedLines", default)]
+    #[serde(rename = "synchronizedLines")]
     lines: Option<Vec<SyncedLine>>,
 }
 
@@ -365,12 +365,17 @@ fn parse_lyrics(lyrics: LyricsData, translation_language: Option<&str>) -> Optio
     let translated: Option<Vec<String>> = if translate
         && let Some(ref lines) = lyrics.lines
         && !lines.is_empty()
-        && !lines[0].line_translated.is_empty()
-    {
+        && lines.iter().any(|line| {
+            line.line_translated.is_some() && !line.line_translated.as_ref().unwrap().is_empty()
+        }) {
         Some(
             lines
                 .iter()
-                .map(|line| format!("[{}]{}", line.lrc_timestamp, line.line_translated))
+                .filter_map(|line| {
+                    line.line_translated
+                        .as_ref()
+                        .map(|line_translated| format!("{}{}", line.lrc_timestamp, line_translated))
+                })
                 .collect(),
         )
     } else {

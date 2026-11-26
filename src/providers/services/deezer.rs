@@ -185,7 +185,7 @@ impl Deezer {
     }
 
     fn search(&self, query: String) -> ProviderResult<Vec<DeezerTrack>> {
-        let response = Http::get(format!("{API_URL}/search"))
+        let response = Http::get(format!("{API_URL}/search/track"))
             .param("q", query)
             .param("limit", SEARCH_LIMIT.to_string())
             .browser()

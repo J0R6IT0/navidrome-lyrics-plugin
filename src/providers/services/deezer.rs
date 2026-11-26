@@ -212,7 +212,7 @@ impl Deezer {
             },
         };
 
-        let response = match Http::post(PIPE_URL)
+        let response = Http::post(PIPE_URL)
             .body(serde_json::to_vec(&body).unwrap_or_default())
             .header("Content-Type", "application/json")
             .header("Authorization", format!("Bearer {}", token))
@@ -222,10 +222,7 @@ impl Deezer {
             )
             .browser()
             .send()
-        {
-            Ok(response) => response,
-            Err(err) => return Err(LookupError::Other(err)),
-        };
+            .map_err(|err| LookupError::Other(err))?;
 
         if response.status == 429 || response.status == 403 {
             return Err(LookupError::Other(response.rate_limited()));
@@ -237,10 +234,9 @@ impl Deezer {
             ));
         }
 
-        let parsed: DeezerLyricsResponse = match response.json("the lyrics") {
-            Ok(parsed) => parsed,
-            Err(err) => return Err(LookupError::Other(err)),
-        };
+        let parsed: DeezerLyricsResponse = response
+            .json::<DeezerLyricsResponse>("the lyrics")
+            .map_err(|err| LookupError::Other(err))?;
 
         let mut not_found = false;
         for error in parsed.errors {
@@ -258,15 +254,15 @@ impl Deezer {
             }
         }
 
-        if not_found || parsed.data.is_none() {
+        if not_found {
             return Ok(None);
         }
 
-        Ok(if let Some(lyrics) = parsed.data.unwrap().track.lyrics {
-            parse_lyrics(lyrics, translation_language)
-        } else {
-            None
-        })
+        Ok(parsed
+            .data
+            .and_then(|data| data.track.lyrics)
+            .map(|lyrics| parse_lyrics(lyrics, translation_language))
+            .flatten())
     }
 }
 
@@ -291,16 +287,15 @@ impl LyricsProvider for Deezer {
         );
 
         let search_results = self.search(query)?;
-        let result = search_results
+        let Some(result) = search_results
             .iter()
             .filter(|t| {
                 track.matches_duration(Duration::from_secs(t.duration), cfg.duration_tolerance)
             })
             .filter(|t| !cfg.require_album_match || track.matches_album(&t.album.title))
-            .min_by_key(|t| Duration::from_secs(t.duration).abs_diff(track.duration()));
-        let song_id = match result {
-            Some(result) => result.id,
-            None => return Ok(None),
+            .min_by_key(|t| Duration::from_secs(t.duration).abs_diff(track.duration()))
+        else {
+            return Ok(None);
         };
 
         let attempt = |force_refresh: bool| -> Result<Option<ProviderLyrics>, LookupError> {
@@ -309,7 +304,7 @@ impl LyricsProvider for Deezer {
                 Err(err) => return Err(LookupError::Other(err)),
             };
 
-            self.get_lyrics(song_id, token, self.translation_language.as_deref())
+            self.get_lyrics(result.id, token, self.translation_language.as_deref())
         };
 
         let result = match attempt(false) {

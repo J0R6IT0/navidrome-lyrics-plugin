@@ -566,7 +566,7 @@
                             "condition": {
                               "scope": "#/properties/provider",
                               "schema": {
-                                "const": "applemusic"
+                                "enum": ["applemusic", "deezer"]
                               }
                             }
                           }
@@ -582,19 +582,6 @@
                           "scope": "#/properties/provider",
                           "schema": {
                             "enum": ["kugou", "netease", "qqmusic"]
-                          }
-                        }
-                      }
-                    },
-                    {
-                      "type": "Control",
-                      "scope": "#/properties/translationLanguage",
-                      "rule": {
-                        "effect": "SHOW",
-                        "condition": {
-                          "scope": "#/properties/provider",
-                          "schema": {
-                            "const": "deezer"
                           }
                         }
                       }

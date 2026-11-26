@@ -333,7 +333,7 @@
 
         "overwriteLyrics": {
           "type": "boolean",
-          "title": "Overwrite existing lyrics files",
+          "title": "Upgrade existing lyrics files",
           "default": false
         },
 
@@ -818,6 +818,19 @@
             {
               "type": "Control",
               "scope": "#/properties/overwriteLyrics",
+              "rule": {
+                "effect": "SHOW",
+                "condition": {
+                  "scope": "#/properties/writeLyrics",
+                  "schema": {
+                    "const": true
+                  }
+                }
+              }
+            },
+            {
+              "type": "Label",
+              "text": "(Upgrades written lyrics when a more preferred format becomes available)",
               "rule": {
                 "effect": "SHOW",
                 "condition": {

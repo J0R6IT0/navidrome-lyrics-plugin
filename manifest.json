@@ -30,6 +30,9 @@
     "taskqueue": {
       "reason": "To fetch lyrics for played songs in the background.",
       "maxConcurrency": 1
+    },
+    "matcher": {
+      "reason": "Fetch additional track metadata to search by ISRC."
     }
   },
 

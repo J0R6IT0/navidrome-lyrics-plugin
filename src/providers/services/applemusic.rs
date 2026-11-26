@@ -1,3 +1,4 @@
+use crate::providers::{ExtraTrackInfo, TrackInfo};
 use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
@@ -5,7 +6,7 @@ use crate::{
     types::{Lyrics, LyricsKind},
 };
 use extism_pdk::info;
-use nd_pdk::{host::cache, lyrics::TrackInfo};
+use nd_pdk::host::cache;
 use regex::Regex;
 use serde::Deserialize;
 use std::{collections::HashMap, time::Duration};
@@ -177,6 +178,33 @@ impl AppleMusic {
         }
     }
 
+    fn by_isrc(
+        &self,
+        session: &Session,
+        storefront: &str,
+        isrc: &str,
+    ) -> Result<Option<Vec<Song>>, LookupError> {
+        let response = Http::get(format!("{BASE_URL}/catalog/{storefront}/songs"))
+            .param("filter[isrc]", isrc)
+            .browser()
+            .headers(session.headers())
+            .send()?;
+
+        let parsed: SongData = match response.status {
+            200 => response.json("songs by isrc")?,
+            s if is_unauthorized(s) => return Err(LookupError::Unauthorized),
+            404 => return Ok(None),
+            429 => return Err(LookupError::Fatal(response.rate_limited())),
+            _ => {
+                return Err(LookupError::Fatal(
+                    response.unexpected_status("songs by isrc"),
+                ));
+            }
+        };
+
+        Ok(Some(parsed.data))
+    }
+
     fn search(
         &self,
         session: &Session,
@@ -264,6 +292,7 @@ impl LyricsProvider for AppleMusic {
     fn fetch_lyrics(
         &self,
         track: &TrackInfo,
+        extra: &ExtraTrackInfo,
         cfg: &PluginConfig,
     ) -> ProviderResult<Option<ProviderLyrics>> {
         if !track.has_artist() {
@@ -291,8 +320,15 @@ impl LyricsProvider for AppleMusic {
 
             let storefront = self.resolve_storefront(&session)?;
 
-            let song = self
-                .search(&session, &storefront, &query)?
+            let songs = extra
+                .isrc
+                .as_deref()
+                .map(|isrc| self.by_isrc(&session, &storefront, isrc))
+                .transpose()?
+                .flatten()
+                .map_or_else(|| self.search(&session, &storefront, &query), Ok)?;
+
+            let song = songs
                 .into_iter()
                 .filter(|s| s.attributes.has_lyrics != Some(false))
                 .filter(|s| {

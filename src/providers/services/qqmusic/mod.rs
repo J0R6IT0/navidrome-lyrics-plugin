@@ -6,6 +6,7 @@
 //! added back to see if that's the reason.
 
 use super::ChineseTranslation;
+use crate::providers::ExtraTrackInfo;
 use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
@@ -265,6 +266,7 @@ impl LyricsProvider for QQMusic {
     fn fetch_lyrics(
         &self,
         track: &TrackInfo,
+        _extra: &ExtraTrackInfo,
         cfg: &PluginConfig,
     ) -> ProviderResult<Option<ProviderLyrics>> {
         if !track.has_artist() {

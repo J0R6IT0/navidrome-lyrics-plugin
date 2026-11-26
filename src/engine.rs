@@ -2,10 +2,14 @@ use crate::cache::LyricsCache;
 use crate::config::PluginConfig;
 use crate::ext::TrackInfoExt;
 use crate::fetch::{self, Outcome};
+use crate::providers::ExtraTrackInfo;
 use crate::types::Lyrics;
 use crate::writing;
 use extism_pdk::{info, warn};
+use nd_pdk::host;
+use nd_pdk::host::matcher::MatchOptions;
 use nd_pdk::lyrics::{Error as LyricsError, GetLyricsResponse, TrackInfo};
+use nd_pdk::types::{SongRef, Track};
 
 pub fn get_lyrics(track: TrackInfo) -> Result<GetLyricsResponse, LyricsError> {
     let cfg = PluginConfig::load()?;
@@ -53,7 +57,8 @@ fn fetch_from_providers(
     cfg: &PluginConfig,
     cache: Option<&LyricsCache>,
 ) -> Result<Lyrics, LyricsError> {
-    let reason = match fetch::run(track, cfg, cache) {
+    let extra = fetch_extra_info(track)?;
+    let reason = match fetch::run(track, &extra, cfg, cache) {
         Outcome::Found(lyrics) => return Ok(lyrics),
         Outcome::NotFound => "no lyrics found from any provider",
         Outcome::ProviderError => "all providers errored while fetching lyrics",
@@ -83,4 +88,30 @@ fn store_in_cache(
         ),
         Err(err) => warn!("failed to persist lyrics to cache: {err}"),
     }
+}
+
+fn fetch_extra_info(track: &TrackInfo) -> Result<ExtraTrackInfo, LyricsError> {
+    let search = vec![SongRef {
+        id: track.clone().id,
+        ..Default::default()
+    }];
+    let extra_info = host::matcher::match_songs(search, MatchOptions::default())
+        .map_err(|e| {
+            LyricsError::new(format!(
+                "failed to fetch extra info for '{}': {e}",
+                track.label()
+            ))
+        })?
+        .into_iter()
+        .collect::<Option<Vec<Track>>>()
+        .and_then(|matched_tracks| {
+            matched_tracks.first().map(|matched_track| {
+                let isrc = matched_track.tags.get("isrc").and_then(|f| f.first());
+                ExtraTrackInfo {
+                    isrc: isrc.cloned(),
+                }
+            })
+        })
+        .unwrap_or_else(Default::default);
+    Ok(extra_info)
 }

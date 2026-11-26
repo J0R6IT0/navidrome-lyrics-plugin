@@ -1,3 +1,4 @@
+use crate::providers::ExtraTrackInfo;
 use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
@@ -108,6 +109,7 @@ impl LyricsProvider for Stixoi {
     fn fetch_lyrics(
         &self,
         track: &TrackInfo,
+        _extra: &ExtraTrackInfo,
         _cfg: &PluginConfig,
     ) -> ProviderResult<Option<ProviderLyrics>> {
         let title = track.clean_title();

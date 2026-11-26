@@ -1,3 +1,4 @@
+use crate::providers::ExtraTrackInfo;
 use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
@@ -77,12 +78,17 @@ impl LyricsProvider for Unison {
     fn fetch_lyrics(
         &self,
         track: &TrackInfo,
+        extra: &ExtraTrackInfo,
         cfg: &PluginConfig,
     ) -> ProviderResult<Option<ProviderLyrics>> {
         let mut request = Http::get(format!("{BASE_URL}/lyrics"))
             .param("song", &track.title)
             .param("artist", track.all_artists(", "))
             .param("duration", track.duration.to_string());
+
+        if let Some(isrc) = extra.isrc.as_deref() {
+            request = request.param("isrc", isrc);
+        }
 
         if cfg.require_album_match {
             request = request.param("album", &track.album);

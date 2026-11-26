@@ -1,3 +1,4 @@
+use crate::providers::ExtraTrackInfo;
 use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
@@ -100,8 +101,14 @@ impl LyricsProvider for LrcRed {
     fn fetch_lyrics(
         &self,
         track: &TrackInfo,
+        extra: &ExtraTrackInfo,
         cfg: &PluginConfig,
     ) -> ProviderResult<Option<ProviderLyrics>> {
+        if let Some(isrc) = extra.isrc.as_ref()
+            && let Some(lyrics) = self.fetch_file(isrc, cfg)?.map(Into::into)
+        {
+            return Ok(Some(lyrics));
+        }
         match self
             .search(track)?
             .into_iter()

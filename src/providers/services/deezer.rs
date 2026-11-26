@@ -6,7 +6,7 @@ use crate::ext::TrackInfoExt;
 use crate::format::{elrc, lrc};
 use crate::providers::error::{ProviderError, ProviderResult};
 use crate::providers::http::Http;
-use crate::providers::{LyricsProvider, ProviderLyrics};
+use crate::providers::{ExtraTrackInfo, LyricsProvider, ProviderLyrics};
 use crate::types::{Lyrics, LyricsKind, Word};
 use extism_pdk::info;
 use nd_pdk::{host::cache, lyrics::TrackInfo};
@@ -82,6 +82,11 @@ struct DeezerSearchResponse {
     error: Option<DeezerError>,
     #[serde(default)]
     data: Vec<DeezerTrack>,
+}
+
+#[derive(Deserialize, Debug)]
+struct DeezerErrorResponse {
+    error: Option<DeezerError>,
 }
 
 #[derive(Deserialize)]
@@ -183,6 +188,35 @@ impl Deezer {
         })
     }
 
+    fn by_isrc(&self, isrc: &str) -> ProviderResult<Option<DeezerTrack>> {
+        let response = Http::get(format!("{API_URL}/track/isrc:{isrc}"))
+            .browser()
+            .send()?;
+
+        match response.status {
+            200 => {
+                // not found (and other errors) result in a status 200 but a completely different
+                // JSON format, so we need to parse it differently. why would anyone design an api like this.
+                let parsed: ProviderResult<DeezerTrack> = response.json("the track");
+                if let Ok(parsed) = parsed {
+                    return Ok(Some(parsed));
+                } else {
+                    let error: DeezerErrorResponse = response.json("the error")?;
+                    if let Some(actual_error) = error.error {
+                        return if actual_error.is_no_data() {
+                            Ok(None)
+                        } else {
+                            Err(ProviderError::from(actual_error))
+                        };
+                    }
+                }
+                Ok(None)
+            }
+            403 | 429 => Err(response.rate_limited()),
+            _ => Err(response.unexpected_status("the isrc lookup")),
+        }
+    }
+
     fn search(&self, query: String) -> ProviderResult<Vec<DeezerTrack>> {
         let response = Http::get(format!("{API_URL}/search/track"))
             .param("q", query)
@@ -280,6 +314,7 @@ impl LyricsProvider for Deezer {
     fn fetch_lyrics(
         &self,
         track: &TrackInfo,
+        extra: &ExtraTrackInfo,
         cfg: &PluginConfig,
     ) -> ProviderResult<Option<ProviderLyrics>> {
         if !track.has_artist() {
@@ -292,16 +327,24 @@ impl LyricsProvider for Deezer {
             track.title
         );
 
-        let search_results = self.search(query)?;
-        let Some(result) = search_results
-            .iter()
-            .filter(|t| {
+        let song_id = if let Some(isrc) = extra.isrc.as_deref()
+            && let Some(result) = self.by_isrc(isrc)?.filter(|t| {
                 track.matches_duration(Duration::from_secs(t.duration), cfg.duration_tolerance)
-            })
-            .filter(|t| !cfg.require_album_match || track.matches_album(&t.album.title))
-            .min_by_key(|t| Duration::from_secs(t.duration).abs_diff(track.duration()))
-        else {
-            return Ok(None);
+            }) {
+            result.id
+        } else {
+            let search_results = self.search(query)?;
+            let Some(result) = search_results
+                .iter()
+                .filter(|t| {
+                    track.matches_duration(Duration::from_secs(t.duration), cfg.duration_tolerance)
+                })
+                .filter(|t| !cfg.require_album_match || track.matches_album(&t.album.title))
+                .min_by_key(|t| Duration::from_secs(t.duration).abs_diff(track.duration()))
+            else {
+                return Ok(None);
+            };
+            result.id
         };
 
         let attempt = |force_refresh: bool| -> Result<Option<ProviderLyrics>, LookupError> {
@@ -310,7 +353,7 @@ impl LyricsProvider for Deezer {
                 Err(err) => return Err(LookupError::Other(err)),
             };
 
-            self.get_lyrics(result.id, token, self.translation_language.as_deref())
+            self.get_lyrics(song_id, token, self.translation_language.as_deref())
         };
 
         let result = match attempt(false) {

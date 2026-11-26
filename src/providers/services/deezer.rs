@@ -3,7 +3,7 @@
 
 use crate::config::{PluginConfig, ProviderParams};
 use crate::ext::TrackInfoExt;
-use crate::format::elrc;
+use crate::format::{elrc, lrc};
 use crate::providers::error::{ProviderError, ProviderResult};
 use crate::providers::http::Http;
 use crate::providers::{LyricsProvider, ProviderLyrics};
@@ -28,7 +28,7 @@ const LYRICS_QUERY: &str = "query GetLyrics($trackId: String!) {
   track(trackId: $trackId) {
     lyrics {
       text
-      synchronizedWordByWordLines { words { start end word } }
+      synchronizedWordByWordLines { start end words { start end word } }
       synchronizedLines { line lineTranslated lrcTimestamp milliseconds duration }
     }
   }
@@ -106,7 +106,10 @@ struct DeezerWord {
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct WordLine {
+    start: i64,
+    end: i64,
     words: Vec<DeezerWord>,
 }
 
@@ -356,28 +359,16 @@ fn fetch_token() -> ProviderResult<String> {
 }
 
 fn parse_lyrics(lyrics: LyricsData, translation_language: Option<&str>) -> Option<ProviderLyrics> {
-    let translate = translation_language.is_some();
-    let translated: Option<Vec<String>> = if translate
-        && let Some(ref lines) = lyrics.lines
-        && !lines.is_empty()
-        && lines.iter().any(|line| {
-            line.line_translated.is_some() && !line.line_translated.as_ref().unwrap().is_empty()
-        }) {
-        Some(
-            lines
-                .iter()
-                .filter_map(|line| {
-                    line.line_translated
-                        .as_ref()
-                        .map(|line_translated| format!("{}{}", line.lrc_timestamp, line_translated))
+    let has_translation = translation_language.is_some()
+        && lyrics.lines.as_ref().is_some_and(|lines| {
+            !lines.is_empty()
+                && lines.iter().any(|line| {
+                    line.line_translated.is_some()
+                        && !line.line_translated.as_ref().unwrap().is_empty()
                 })
-                .collect(),
-        )
-    } else {
-        None
-    };
+        });
 
-    let out = if let Some(word_lines) = lyrics.word_lines
+    if let Some(word_lines) = lyrics.word_lines
         && !word_lines.is_empty()
     {
         let out: Vec<String> = word_lines
@@ -401,28 +392,64 @@ fn parse_lyrics(lyrics: LyricsData, translation_language: Option<&str>) -> Optio
             })
             .collect();
 
-        ProviderLyrics::from(Lyrics::Elrc(out.join("\n")))
-    } else if let Some(lines) = lyrics.lines
+        let elrc = ProviderLyrics::from(Lyrics::Elrc(out.join("\n")));
+        if has_translation {
+            if let Some(lines) = lyrics.lines.as_ref()
+                && lines.len() == word_lines.len()
+            {
+                let translation: Vec<String> = lines
+                    .iter()
+                    .zip(word_lines.iter())
+                    .filter_map(|(line, word_line)| {
+                        line.line_translated.as_ref().map(|line_translated| {
+                            format!(
+                                "[{}]{}",
+                                lrc::format_timestamp(word_line.start),
+                                line_translated
+                            )
+                        })
+                    })
+                    .collect();
+                return Some(elrc.translation(
+                    translation.join("\n"),
+                    translation_language.unwrap_or_default().to_string(),
+                ));
+            }
+        } else {
+            return Some(elrc);
+        }
+    }
+
+    if let Some(lines) = lyrics.lines
         && !lines.is_empty()
     {
-        let out: Vec<String> = lines
+        let (out, translated): (Vec<String>, Vec<Option<String>>) = lines
             .iter()
-            .map(|line| format!("{}{}", line.lrc_timestamp, line.line))
+            .map(|line| {
+                (
+                    format!("{}{}", line.lrc_timestamp, line.line),
+                    line.line_translated.as_ref().map(|line_translated| {
+                        format!("{}{}", line.lrc_timestamp, line_translated)
+                    }),
+                )
+            })
             .collect();
 
-        ProviderLyrics::from(Lyrics::Lrc(out.join("\n")))
-    } else {
-        ProviderLyrics::from(Lyrics::Plain(lyrics.text))
-    };
-
-    if out.lyrics.kind() != LyricsKind::Plain
-        && let Some(translated) = translated
-    {
-        Some(out.translation(
-            translated.join("\n"),
-            translation_language.unwrap_or_default().to_string(),
-        ))
-    } else {
-        Some(out)
+        let lrc = ProviderLyrics::from(Lyrics::Lrc(out.join("\n")));
+        return if has_translation {
+            Some(
+                lrc.translation(
+                    translated
+                        .iter()
+                        .filter_map(Option::as_deref)
+                        .collect::<Vec<&str>>()
+                        .join("\n"),
+                    translation_language.unwrap_or_default().to_string(),
+                ),
+            )
+        } else {
+            Some(lrc)
+        };
     }
+    Some(ProviderLyrics::from(Lyrics::Plain(lyrics.text)))
 }

@@ -32,8 +32,7 @@ type Result<T> = std::result::Result<T, Error>;
 pub struct PluginConfig {
     pub lyrics_type_priority: Vec<LyricsKind>,
     pub write_lyrics: bool,
-    pub overwrite_lyrics: bool,
-    pub delete_existing_lyrics: bool,
+    pub upgrade_lyrics: bool,
     pub plain_extension: String,
     pub instrumental_extension: String,
     pub enable_cache: bool,
@@ -59,8 +58,7 @@ impl Default for PluginConfig {
         Self {
             lyrics_type_priority: DEFAULT_LYRICS_FORMATS.to_vec(),
             write_lyrics: false,
-            overwrite_lyrics: false,
-            delete_existing_lyrics: false,
+            upgrade_lyrics: false,
             plain_extension: DEFAULT_PLAIN_EXTENSION.to_string(),
             instrumental_extension: DEFAULT_INSTRUMENTAL_EXTENSION.to_string(),
             enable_cache: true,
@@ -90,8 +88,7 @@ impl PluginConfig {
         Ok(Self {
             lyrics_type_priority: resolve_lyrics_type_priority()?,
             write_lyrics: get_bool("writeLyrics", false)?,
-            overwrite_lyrics: get_bool("overwriteLyrics", false)?,
-            delete_existing_lyrics: get_bool("deleteExistingLyrics", false)?,
+            upgrade_lyrics: get_bool("overwriteLyrics", false)?,
             plain_extension: resolve_extension("plainExtension", DEFAULT_PLAIN_EXTENSION)?,
             instrumental_extension: resolve_extension(
                 "instrumentalExtension",

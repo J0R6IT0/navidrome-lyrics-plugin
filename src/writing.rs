@@ -6,7 +6,7 @@ use nd_pdk::{
     host::library,
     lyrics::{Error as LyricsError, TrackInfo},
 };
-use std::{fs, path::PathBuf};
+use std::{fs, path::Path, path::PathBuf};
 
 pub fn write(track: &TrackInfo, lyrics: &Lyrics, cfg: &PluginConfig) -> Result<(), LyricsError> {
     let path = if cfg.write_to_specific_folder {
@@ -15,12 +15,14 @@ pub fn write(track: &TrackInfo, lyrics: &Lyrics, cfg: &PluginConfig) -> Result<(
         resolve_sidecar_path(track, lyrics.kind(), cfg)?
     };
 
-    if path.exists() && !cfg.overwrite_lyrics {
+    if cfg.upgrade_lyrics {
+        if is_upgrade(track, &path, &lyrics.kind(), cfg)? {
+            delete_existing(track, cfg)?;
+        } else {
+            return Ok(());
+        }
+    } else if path.exists() {
         return Ok(());
-    }
-
-    if cfg.delete_existing_lyrics {
-        delete_existing_lyrics(track, cfg)?;
     }
 
     if let Some(parent) = path.parent() {
@@ -34,7 +36,32 @@ pub fn write(track: &TrackInfo, lyrics: &Lyrics, cfg: &PluginConfig) -> Result<(
     Ok(())
 }
 
-fn delete_existing_lyrics(track: &TrackInfo, cfg: &PluginConfig) -> Result<(), LyricsError> {
+fn is_upgrade(
+    track: &TrackInfo,
+    path: &Path,
+    kind: &LyricsKind,
+    cfg: &PluginConfig,
+) -> Result<bool, LyricsError> {
+    if path.exists() {
+        return Ok(false);
+    }
+    let paths: Vec<PathBuf> = cfg
+        .lyrics_type_priority
+        .iter()
+        .take_while(|k| *k != kind)
+        .map(|k| {
+            if cfg.write_to_specific_folder {
+                resolve_custom_path(track, *k, cfg)
+            } else {
+                resolve_sidecar_path(track, *k, cfg)
+            }
+        })
+        .collect::<Result<Vec<PathBuf>, LyricsError>>()?;
+    let has_better = paths.iter().any(|p| p.exists());
+    Ok(!has_better)
+}
+
+fn delete_existing(track: &TrackInfo, cfg: &PluginConfig) -> Result<(), LyricsError> {
     for k in &cfg.lyrics_type_priority {
         let path = if cfg.write_to_specific_folder {
             resolve_custom_path(track, *k, cfg)?
@@ -43,11 +70,12 @@ fn delete_existing_lyrics(track: &TrackInfo, cfg: &PluginConfig) -> Result<(), L
         };
 
         if path.exists() {
-            fs::remove_file(&path)
-                .map_err(|e| LyricsError::new(format!("failed to delete existing lyrics file: {e}")))?;
+            fs::remove_file(&path).map_err(|e| {
+                LyricsError::new(format!("failed to delete existing lyrics file: {e}"))
+            })?;
         }
     }
-    
+
     Ok(())
 }
 

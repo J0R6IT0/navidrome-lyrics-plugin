@@ -34,6 +34,8 @@ const LYRICS_QUERY: &str = "query GetLyrics($trackId: String!) {
   }
 }";
 
+const MAX_MEDIAN_LYRIC_DESYNC: u64 = 2 * 1000;
+
 const ERROR_QUOTA_EXCEEDED: i64 = 4;
 const ERROR_NO_DATA: i64 = 800;
 
@@ -116,6 +118,8 @@ struct WordLine {
 #[derive(Deserialize)]
 struct SyncedLine {
     line: String,
+    #[serde(rename = "milliseconds")]
+    start: i64,
     #[serde(rename = "lineTranslated")]
     line_translated: Option<String>,
     #[serde(rename = "lrcTimestamp")]
@@ -396,6 +400,12 @@ fn parse_lyrics(lyrics: LyricsData, translation_language: Option<&str>) -> Optio
         if has_translation {
             if let Some(lines) = lyrics.lines.as_ref()
                 && lines.len() == word_lines.len()
+                && median(
+                    lines
+                        .iter()
+                        .zip(word_lines.iter())
+                        .map(|(line, word_line)| word_line.start.abs_diff(line.start)),
+                ) < MAX_MEDIAN_LYRIC_DESYNC
             {
                 let translation: Vec<String> = lines
                     .iter()
@@ -452,4 +462,19 @@ fn parse_lyrics(lyrics: LyricsData, translation_language: Option<&str>) -> Optio
         };
     }
     Some(ProviderLyrics::from(Lyrics::Plain(lyrics.text)))
+}
+
+fn median<I>(i: I) -> u64
+where
+    I: Iterator<Item = u64>,
+{
+    let mut v: Vec<u64> = i.collect();
+    v.sort_unstable();
+
+    let middle: usize = v.len() / 2;
+    if v.len() % 2 == 0 {
+        (v[middle - 1] + v[middle]) / 2
+    } else {
+        v[middle]
+    }
 }

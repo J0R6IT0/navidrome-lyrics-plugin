@@ -1,3 +1,4 @@
+use crate::providers::ExtraTrackInfo;
 use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
@@ -117,6 +118,7 @@ impl LyricsProvider for Lrclib {
     fn fetch_lyrics(
         &self,
         track: &TrackInfo,
+        _extra: &ExtraTrackInfo,
         cfg: &PluginConfig,
     ) -> ProviderResult<Option<ProviderLyrics>> {
         let preferred = preferred_over_plain(cfg);

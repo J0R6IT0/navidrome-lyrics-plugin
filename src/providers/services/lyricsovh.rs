@@ -1,3 +1,4 @@
+use crate::providers::ExtraTrackInfo;
 use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
@@ -61,6 +62,7 @@ impl LyricsProvider for LyricsOvh {
     fn fetch_lyrics(
         &self,
         track: &TrackInfo,
+        _extra: &ExtraTrackInfo,
         _cfg: &PluginConfig,
     ) -> ProviderResult<Option<ProviderLyrics>> {
         if !track.has_artist() {

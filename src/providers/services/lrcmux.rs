@@ -1,3 +1,4 @@
+use crate::providers::ExtraTrackInfo;
 use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
@@ -80,10 +81,31 @@ impl Lrcmux {
         })
     }
 
-    fn get(&self, track: &TrackInfo) -> ProviderResult<Option<JsonResponse>> {
+    fn get(
+        &self,
+        track: &TrackInfo,
+        extra: &ExtraTrackInfo,
+    ) -> ProviderResult<Option<JsonResponse>> {
         let Some(sources) = &self.sources else {
             return Ok(None);
         };
+
+        if let Some(isrc) = extra.isrc.as_deref() {
+            let response = Http::get(format!("{}/get", self.base_url))
+                .param("isrc", isrc)
+                .param("duration", track.duration().as_secs().to_string())
+                .param("sources", sources)
+                .send()?;
+            match response.status {
+                200 => {
+                    let response: JsonResponse = response.json("get")?;
+                    validate_source(&response.meta.source.id, sources)?;
+                    return Ok(Some(response));
+                }
+                429 => return Err(response.rate_limited()),
+                _ => (),
+            }
+        }
 
         let response = Http::get(format!("{}/get", self.base_url))
             .param("artist", track.first_artist().unwrap_or_default())
@@ -122,13 +144,14 @@ impl LyricsProvider for Lrcmux {
     fn fetch_lyrics(
         &self,
         track: &TrackInfo,
+        extra: &ExtraTrackInfo,
         cfg: &PluginConfig,
     ) -> ProviderResult<Option<ProviderLyrics>> {
         if !track.has_artist() {
             return Err(ProviderError::other("track has no artist"));
         }
 
-        let Some(response) = self.get(track)? else {
+        let Some(response) = self.get(track, extra)? else {
             return Ok(None);
         };
 

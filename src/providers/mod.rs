@@ -49,6 +49,12 @@ pub struct ProviderLyrics {
     pub tracks: Vec<LyricsTrack>,
 }
 
+/// Extra track info obtained via matcher.
+#[derive(Default)]
+pub struct ExtraTrackInfo {
+    pub isrc: Option<String>,
+}
+
 #[allow(dead_code)]
 impl ProviderLyrics {
     /// Adds a translation track.
@@ -87,6 +93,7 @@ pub trait LyricsProvider {
     fn fetch_lyrics(
         &self,
         track: &TrackInfo,
+        extra: &ExtraTrackInfo,
         cfg: &PluginConfig,
     ) -> ProviderResult<Option<ProviderLyrics>>;
 

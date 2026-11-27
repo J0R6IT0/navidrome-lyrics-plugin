@@ -2,7 +2,9 @@ use crate::cache::LyricsCache;
 use crate::config::{PluginConfig, ProviderEntry};
 use crate::format::ttml;
 use crate::providers::error::ProviderError;
-use crate::providers::{LyricsProvider, ProviderLyrics, ProviderRegistry, register_providers};
+use crate::providers::{
+    ExtraTrackInfo, LyricsProvider, ProviderLyrics, ProviderRegistry, register_providers,
+};
 use crate::types::{Lyrics, LyricsKind};
 use extism_pdk::{info, warn};
 use nd_pdk::lyrics::TrackInfo;
@@ -18,19 +20,24 @@ pub enum Outcome {
     ProviderError,
 }
 
-pub fn run(track: &TrackInfo, cfg: &PluginConfig, cache: Option<&LyricsCache>) -> Outcome {
+pub fn run(
+    track: &TrackInfo,
+    extra: &ExtraTrackInfo,
+    cfg: &PluginConfig,
+    cache: Option<&LyricsCache>,
+) -> Outcome {
     let mut registry = ProviderRegistry::new();
     register_providers(&mut registry);
 
     Orchestrator {
         registry: &registry,
         track,
+        extra,
         cfg,
         negative_cache: cfg.negative_cache.then_some(cache).flatten(),
     }
     .run()
 }
-
 struct PreparedProvider {
     provider: Box<dyn LyricsProvider>,
     label: String,
@@ -51,6 +58,7 @@ struct Candidate {
 struct Orchestrator<'a> {
     registry: &'a ProviderRegistry,
     track: &'a TrackInfo,
+    extra: &'a ExtraTrackInfo,
     cfg: &'a PluginConfig,
     negative_cache: Option<&'a LyricsCache<'a>>,
 }
@@ -201,7 +209,7 @@ impl Orchestrator<'_> {
         }
 
         info!("trying provider '{}'", label);
-        match provider.fetch_lyrics(self.track, self.cfg) {
+        match provider.fetch_lyrics(self.track, self.extra, self.cfg) {
             Ok(Some(fetched)) if !self.cfg.accepts(&fetched.lyrics) => {
                 info!(
                     "provider '{}' returned unwanted {} lyrics, skipping",

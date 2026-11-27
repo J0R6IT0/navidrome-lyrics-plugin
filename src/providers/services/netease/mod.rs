@@ -1,4 +1,5 @@
 use super::ChineseTranslation;
+use crate::providers::ExtraTrackInfo;
 use crate::{
     config::{PluginConfig, ProviderParams},
     ext::TrackInfoExt,
@@ -136,6 +137,7 @@ impl LyricsProvider for NetEase {
     fn fetch_lyrics(
         &self,
         track: &TrackInfo,
+        _extra: &ExtraTrackInfo,
         cfg: &PluginConfig,
     ) -> ProviderResult<Option<ProviderLyrics>> {
         if !track.has_artist() {

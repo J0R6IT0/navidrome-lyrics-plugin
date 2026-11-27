@@ -3,8 +3,8 @@ use crate::{
     providers::{
         error::ProviderResult,
         services::{
-            AppleMusic, Genie, KuGou, LrcRed, Lrclib, Lrcmux, LyricsOvh, NetEase, QQMusic, Stixoi,
-            Unison,
+            AppleMusic, Deezer, Genie, KuGou, LrcRed, Lrclib, Lrcmux, LyricsOvh, NetEase, QQMusic,
+            Stixoi, Unison,
         },
     },
     types::{Lyrics, LyricsKind, LyricsTrack, TrackKind},
@@ -39,6 +39,7 @@ pub fn register_providers(registry: &mut ProviderRegistry) {
     registry.register("genie", Genie::create);
     registry.register("lrc.red", LrcRed::create);
     registry.register("unison", Unison::create);
+    registry.register("deezer", Deezer::create);
 }
 
 /// Lyrics returned by a provider. Can have optional translation and transliteration

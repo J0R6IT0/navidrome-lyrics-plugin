@@ -1,4 +1,5 @@
 mod applemusic;
+mod deezer;
 mod genie;
 mod kugou;
 mod lrclib;
@@ -11,6 +12,7 @@ mod stixoi;
 mod unison;
 
 pub use applemusic::*;
+pub use deezer::*;
 pub use genie::*;
 pub use kugou::*;
 pub use lrclib::*;

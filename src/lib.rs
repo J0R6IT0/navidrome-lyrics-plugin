@@ -1,7 +1,5 @@
 use nd_pdk::lifecycle::{Error as LifecycleError, InitProvider};
-use nd_pdk::lyrics::{
-    Error as LyricsError, GetLyricsRequest, GetLyricsResponse, Lyrics as LyricsPlugin,
-};
+use nd_pdk::lyrics::{Error as LyricsError, GetLyricsRequest, GetLyricsResponse, Lyrics};
 use nd_pdk::scrobbler::{
     Error as ScrobblerError, IsAuthorizedRequest, NowPlayingRequest, PlaybackReportRequest,
     ScrobbleRequest, Scrobbler,
@@ -27,7 +25,7 @@ nd_pdk::register_lifecycle_init!(Plugin);
 nd_pdk::register_scrobbler!(Plugin);
 nd_pdk::register_taskworker_task_execute!(Plugin);
 
-impl LyricsPlugin for Plugin {
+impl Lyrics for Plugin {
     fn get_lyrics(&self, req: GetLyricsRequest) -> Result<GetLyricsResponse, LyricsError> {
         engine::get_lyrics(req.track)
     }
@@ -45,11 +43,7 @@ impl Scrobbler for Plugin {
     }
 
     fn now_playing(&self, req: NowPlayingRequest) -> Result<(), ScrobblerError> {
-        let track = req.track;
-        let label = ext::track_label(&track.id, &track.artist, &track.title);
-
-        prefetch::enqueue(&req.username, &track.id, label)
-            .map_err(|e| ScrobblerError::new(e.to_string()))
+        prefetch::enqueue(&req.username, &req.track).map_err(|e| ScrobblerError::new(e.to_string()))
     }
 
     fn scrobble(&self, _req: ScrobbleRequest) -> Result<(), ScrobblerError> {

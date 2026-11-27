@@ -11,7 +11,7 @@
       "requiredHosts": ["*"]
     },
     "library": {
-      "reason": "To save lyrics as .lrc files.",
+      "reason": "To save lyrics to files.",
       "filesystem": true
     },
     "cache": {

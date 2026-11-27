@@ -173,7 +173,7 @@ mod tests {
                 .iter()
                 .min_by_key(|lyrics| ranker.rank(lyrics))
                 .expect("no candidates");
-            assert_eq!(best.text(&self.cfg).as_ref(), expected);
+            assert_eq!(best.text(&self.cfg), expected);
         }
 
         #[track_caller]

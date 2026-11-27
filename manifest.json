@@ -1,5 +1,5 @@
 {
-  "name": "Lyrics",
+  "name": "ND Lyrics",
   "author": "Jorge Pardo",
   "version": "9.2.0",
   "description": "Fetch lyrics from multiple sources",
@@ -99,7 +99,6 @@
                   { "const": "applemusic", "title": "Apple Music" },
                   { "const": "stixoi", "title": "stixoi.info" },
                   { "const": "genie", "title": "Genie Music" },
-                  { "const": "binilyrics", "title": "BiniLyrics" },
                   { "const": "lrc.red", "title": "lrc.red" },
                   { "const": "unison", "title": "Unison" },
                   { "const": "deezer", "title": "Deezer" }
@@ -335,7 +334,7 @@
 
         "overwriteLyrics": {
           "type": "boolean",
-          "title": "Overwrite existing lyrics files",
+          "title": "Upgrade existing lyrics files",
           "default": false
         },
 
@@ -820,6 +819,19 @@
             {
               "type": "Control",
               "scope": "#/properties/overwriteLyrics",
+              "rule": {
+                "effect": "SHOW",
+                "condition": {
+                  "scope": "#/properties/writeLyrics",
+                  "schema": {
+                    "const": true
+                  }
+                }
+              }
+            },
+            {
+              "type": "Label",
+              "text": "(Upgrades written lyrics when a more preferred format becomes available)",
               "rule": {
                 "effect": "SHOW",
                 "condition": {

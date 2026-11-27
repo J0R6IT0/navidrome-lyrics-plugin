@@ -1,5 +1,4 @@
 mod applemusic;
-mod binilyrics;
 mod deezer;
 mod genie;
 mod kugou;
@@ -13,7 +12,6 @@ mod stixoi;
 mod unison;
 
 pub use applemusic::*;
-pub use binilyrics::*;
 pub use deezer::*;
 pub use genie::*;
 pub use kugou::*;

@@ -52,7 +52,7 @@ struct Orchestrator<'a> {
     registry: &'a ProviderRegistry,
     track: &'a TrackInfo,
     cfg: &'a PluginConfig,
-    negative_cache: Option<&'a LyricsCache>,
+    negative_cache: Option<&'a LyricsCache<'a>>,
 }
 
 impl Orchestrator<'_> {
@@ -202,7 +202,7 @@ impl Orchestrator<'_> {
 
         info!("trying provider '{}'", label);
         match provider.fetch_lyrics(self.track, self.cfg) {
-            Ok(Some(fetched)) if !is_wanted(self.cfg, &fetched.lyrics) => {
+            Ok(Some(fetched)) if !self.cfg.accepts(&fetched.lyrics) => {
                 info!(
                     "provider '{}' returned unwanted {} lyrics, skipping",
                     label,
@@ -267,10 +267,6 @@ impl Orchestrator<'_> {
     }
 }
 
-fn is_wanted(cfg: &PluginConfig, lyrics: &Lyrics) -> bool {
-    matches!(lyrics, Lyrics::Instrumental) || cfg.wants(lyrics.kind())
-}
-
 fn outcome_without_lyrics(had_error: bool) -> Outcome {
     if had_error {
         Outcome::ProviderError
@@ -298,44 +294,10 @@ mod tests {
     use super::*;
 
     #[track_caller]
-    fn check_wanted(priority: &[LyricsKind], lyrics: Lyrics, expected: bool) {
-        let cfg = PluginConfig {
-            lyrics_type_priority: priority.to_vec(),
-            ..PluginConfig::default()
-        };
-
-        assert_eq!(
-            is_wanted(&cfg, &lyrics),
-            expected,
-            "{lyrics:?} with {priority:?}"
-        );
-    }
-
-    #[track_caller]
     fn check_label(name: &str, params: &[(&'static str, &str)], expected: &str) {
         let params: Vec<_> = params.iter().map(|&(k, v)| (k, v.to_string())).collect();
 
         assert_eq!(provider_label(name, &params), expected);
-    }
-
-    #[test]
-    fn enabled_lyrics_types_are_wanted() {
-        let priority = [LyricsKind::Ttml, LyricsKind::Lrc];
-        check_wanted(&priority, Lyrics::Ttml(String::new()), true);
-        check_wanted(&priority, Lyrics::Lrc(String::new()), true);
-    }
-
-    #[test]
-    fn disabled_lyrics_types_are_not_wanted() {
-        let priority = [LyricsKind::Ttml];
-        check_wanted(&priority, Lyrics::Lrc(String::new()), false);
-        check_wanted(&priority, Lyrics::Plain(String::new()), false);
-    }
-
-    #[test]
-    fn instrumental_is_always_wanted() {
-        check_wanted(&[LyricsKind::Ttml], Lyrics::Instrumental, true);
-        check_wanted(&[], Lyrics::Instrumental, true);
     }
 
     #[test]

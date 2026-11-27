@@ -28,7 +28,7 @@ impl Lyrics {
         }
     }
 
-    fn content(&self) -> Option<&str> {
+    pub fn content(&self) -> Option<&str> {
         match self {
             Lyrics::Plain(s)
             | Lyrics::Lrc(s)

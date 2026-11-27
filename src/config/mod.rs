@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::{
     config::ttl::{DEFAULT_CACHE_TTL, DEFAULT_NEGATIVE_CACHE_TTL},
-    types::LyricsKind,
+    types::{Lyrics, LyricsKind},
 };
 use extism_pdk::warn;
 use host::{get_bool, get_f64, get_optional_i32, get_raw_string, get_string};
@@ -126,6 +126,10 @@ impl PluginConfig {
         self.lyrics_type_priority.contains(&kind)
     }
 
+    pub fn accepts(&self, lyrics: &Lyrics) -> bool {
+        matches!(lyrics, Lyrics::Instrumental) || self.wants(lyrics.kind())
+    }
+
     pub fn cache_ttl_hours_for(&self, kind: LyricsKind) -> i64 {
         if self.per_type_cache_ttl {
             self.type_cache_ttl_hours.get(kind)
@@ -246,6 +250,20 @@ mod tests {
     #[track_caller]
     fn check_extension(raw: &str, expected: &str) {
         assert_eq!(normalize_extension(raw), expected, "extension from {raw:?}");
+    }
+
+    #[track_caller]
+    fn check_accepted(priority: &[LyricsKind], lyrics: Lyrics, expected: bool) {
+        let config = PluginConfig {
+            lyrics_type_priority: priority.to_vec(),
+            ..PluginConfig::default()
+        };
+
+        assert_eq!(
+            config.accepts(&lyrics),
+            expected,
+            "{lyrics:?} with {priority:?}"
+        );
     }
 
     #[track_caller]
@@ -408,5 +426,25 @@ mod tests {
         }
 
         check_extension("///", "");
+    }
+
+    #[test]
+    fn enabled_lyrics_types_are_accepted() {
+        let priority = [LyricsKind::Ttml, LyricsKind::Lrc];
+        check_accepted(&priority, Lyrics::Ttml(String::new()), true);
+        check_accepted(&priority, Lyrics::Lrc(String::new()), true);
+    }
+
+    #[test]
+    fn disabled_lyrics_types_are_not_accepted() {
+        let priority = [LyricsKind::Ttml];
+        check_accepted(&priority, Lyrics::Lrc(String::new()), false);
+        check_accepted(&priority, Lyrics::Plain(String::new()), false);
+    }
+
+    #[test]
+    fn instrumental_is_always_accepted() {
+        check_accepted(&[LyricsKind::Ttml], Lyrics::Instrumental, true);
+        check_accepted(&[], Lyrics::Instrumental, true);
     }
 }

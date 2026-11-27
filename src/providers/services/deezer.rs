@@ -46,6 +46,13 @@ struct DeezerTrack {
     duration: u64,
 }
 
+#[derive(Deserialize)]
+struct DeezerTrackResponse {
+    #[serde(flatten)]
+    track: Option<DeezerTrack>,
+    error: Option<DeezerError>,
+}
+
 #[derive(Deserialize, Debug)]
 struct DeezerAlbum {
     title: String,
@@ -82,11 +89,6 @@ struct DeezerSearchResponse {
     error: Option<DeezerError>,
     #[serde(default)]
     data: Vec<DeezerTrack>,
-}
-
-#[derive(Deserialize, Debug)]
-struct DeezerErrorResponse {
-    error: Option<DeezerError>,
 }
 
 #[derive(Deserialize)]
@@ -195,22 +197,19 @@ impl Deezer {
 
         match response.status {
             200 => {
-                // not found (and other errors) result in a status 200 but a completely different
-                // JSON format, so we need to parse it differently. why would anyone design an api like this.
-                let parsed: ProviderResult<DeezerTrack> = response.json("the track");
+                let parsed: ProviderResult<DeezerTrackResponse> = response.json("the track");
                 if let Ok(parsed) = parsed {
-                    return Ok(Some(parsed));
-                } else {
-                    let error: DeezerErrorResponse = response.json("the error")?;
-                    if let Some(actual_error) = error.error {
-                        return if actual_error.is_no_data() {
+                    if let Some(error) = parsed.error {
+                        return if error.is_no_data() {
                             Ok(None)
                         } else {
-                            Err(ProviderError::from(actual_error))
+                            Err(ProviderError::from(error))
                         };
                     }
+                    Ok(parsed.track)
+                } else {
+                    Ok(None)
                 }
-                Ok(None)
             }
             403 | 429 => Err(response.rate_limited()),
             _ => Err(response.unexpected_status("the isrc lookup")),

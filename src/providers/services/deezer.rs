@@ -80,6 +80,7 @@ impl DeezerError {
 #[derive(Deserialize, Debug)]
 struct DeezerSearchResponse {
     error: Option<DeezerError>,
+    #[serde(default)]
     data: Vec<DeezerTrack>,
 }
 
@@ -108,10 +109,8 @@ struct DeezerWord {
 }
 
 #[derive(Deserialize)]
-#[allow(dead_code)]
 struct WordLine {
     start: i64,
-    end: i64,
     words: Vec<DeezerWord>,
 }
 
@@ -143,7 +142,7 @@ struct Track {
 
 #[derive(Deserialize)]
 struct Data {
-    track: Track,
+    track: Option<Track>,
 }
 
 #[derive(Deserialize)]
@@ -229,7 +228,7 @@ impl Deezer {
             )
             .browser()
             .send()
-            .map_err(|err| LookupError::Other(err))?;
+            .map_err(LookupError::Other)?;
 
         if response.status == 429 || response.status == 403 {
             return Err(LookupError::Other(response.rate_limited()));
@@ -243,7 +242,7 @@ impl Deezer {
 
         let parsed: DeezerLyricsResponse = response
             .json::<DeezerLyricsResponse>("the lyrics")
-            .map_err(|err| LookupError::Other(err))?;
+            .map_err(LookupError::Other)?;
 
         let mut not_found = false;
         for error in parsed.errors {
@@ -267,9 +266,9 @@ impl Deezer {
 
         Ok(parsed
             .data
-            .and_then(|data| data.track.lyrics)
-            .map(|lyrics| parse_lyrics(lyrics, translation_language))
-            .flatten())
+            .and_then(|data| data.track)
+            .and_then(|track| track.lyrics)
+            .and_then(|lyrics| parse_lyrics(lyrics, translation_language)))
     }
 }
 
@@ -364,69 +363,31 @@ fn fetch_token() -> ProviderResult<String> {
 
 fn parse_lyrics(lyrics: LyricsData, translation_language: Option<&str>) -> Option<ProviderLyrics> {
     let has_translation = translation_language.is_some()
-        && lyrics.lines.as_ref().is_some_and(|lines| {
-            !lines.is_empty()
-                && lines.iter().any(|line| {
-                    line.line_translated.is_some()
-                        && !line.line_translated.as_ref().unwrap().is_empty()
-                })
+        && lyrics.lines.iter().flatten().any(|line| {
+            line.line_translated
+                .as_deref()
+                .is_some_and(|translated| !translated.is_empty())
         });
 
     if let Some(word_lines) = lyrics.word_lines
         && !word_lines.is_empty()
     {
-        let out: Vec<String> = word_lines
-            .iter()
-            .filter_map(|line| {
-                (!line.words.is_empty())
-                    .then(|| {
-                        let line_start = line.words[0].start;
-                        let words: Vec<Word> = line
-                            .words
-                            .iter()
-                            .map(|word| Word {
-                                text: format!("{} ", word.word),
-                                start_ms: word.start,
-                                end_ms: word.end,
-                            })
-                            .collect();
-                        elrc::render_line(line_start, &words)
-                    })
-                    .flatten()
-            })
-            .collect();
-
-        let elrc = ProviderLyrics::from(Lyrics::Elrc(out.join("\n")));
-        if has_translation {
-            if let Some(lines) = lyrics.lines.as_ref()
-                && lines.len() == word_lines.len()
-                && median(
-                    lines
-                        .iter()
-                        .zip(word_lines.iter())
-                        .map(|(line, word_line)| word_line.start.abs_diff(line.start)),
-                ) < MAX_MEDIAN_LYRIC_DESYNC
-            {
-                let translation: Vec<String> = lines
+        let lines = lyrics.lines.as_deref().unwrap_or_default();
+        let aligned = lines.len() == word_lines.len();
+        let desynced = aligned
+            && median(
+                lines
                     .iter()
                     .zip(word_lines.iter())
-                    .filter_map(|(line, word_line)| {
-                        line.line_translated.as_ref().map(|line_translated| {
-                            format!(
-                                "[{}]{}",
-                                lrc::format_timestamp(word_line.start),
-                                line_translated
-                            )
-                        })
-                    })
-                    .collect();
-                return Some(elrc.translation(
-                    translation.join("\n"),
-                    translation_language.unwrap_or_default().to_string(),
-                ));
-            }
-        } else {
-            return Some(elrc);
+                    .map(|(line, word_line)| word_line.start.abs_diff(line.start)),
+            ) >= MAX_MEDIAN_LYRIC_DESYNC;
+
+        if !desynced && (aligned || !has_translation) {
+            return Some(word_synced_lyrics(
+                &word_lines,
+                lines,
+                translation_language.filter(|_| has_translation),
+            ));
         }
     }
 
@@ -464,6 +425,54 @@ fn parse_lyrics(lyrics: LyricsData, translation_language: Option<&str>) -> Optio
     Some(ProviderLyrics::from(Lyrics::Plain(lyrics.text)))
 }
 
+fn word_synced_lyrics(
+    word_lines: &[WordLine],
+    lines: &[SyncedLine],
+    translation_language: Option<&str>,
+) -> ProviderLyrics {
+    let out: Vec<String> = word_lines
+        .iter()
+        .filter_map(|line| {
+            (!line.words.is_empty())
+                .then(|| {
+                    let line_start = line.words[0].start;
+                    let words: Vec<Word> = line
+                        .words
+                        .iter()
+                        .map(|word| Word {
+                            text: format!("{} ", word.word),
+                            start_ms: word.start,
+                            end_ms: word.end,
+                        })
+                        .collect();
+                    elrc::render_line(line_start, &words)
+                })
+                .flatten()
+        })
+        .collect();
+
+    let elrc = ProviderLyrics::from(Lyrics::Elrc(out.join("\n")));
+    let Some(translation_language) = translation_language else {
+        return elrc;
+    };
+
+    let translation: Vec<String> = lines
+        .iter()
+        .zip(word_lines.iter())
+        .filter_map(|(line, word_line)| {
+            line.line_translated.as_ref().map(|line_translated| {
+                format!(
+                    "[{}]{}",
+                    lrc::format_timestamp(word_line.start),
+                    line_translated
+                )
+            })
+        })
+        .collect();
+
+    elrc.translation(translation.join("\n"), translation_language.to_string())
+}
+
 fn median<I>(i: I) -> u64
 where
     I: Iterator<Item = u64>,
@@ -472,7 +481,7 @@ where
     v.sort_unstable();
 
     let middle: usize = v.len() / 2;
-    if v.len() % 2 == 0 {
+    if v.len().is_multiple_of(2) {
         (v[middle - 1] + v[middle]) / 2
     } else {
         v[middle]

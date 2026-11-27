@@ -1,5 +1,6 @@
 mod applemusic;
 mod binilyrics;
+mod deezer;
 mod genie;
 mod kugou;
 mod lrclib;
@@ -10,10 +11,10 @@ mod netease;
 mod qqmusic;
 mod stixoi;
 mod unison;
-mod deezer;
 
 pub use applemusic::*;
 pub use binilyrics::*;
+pub use deezer::*;
 pub use genie::*;
 pub use kugou::*;
 pub use lrclib::*;
@@ -24,7 +25,6 @@ pub use netease::*;
 pub use qqmusic::*;
 pub use stixoi::*;
 pub use unison::*;
-pub use deezer::*;
 
 use crate::{
     config::{PluginConfig, ProviderParams},

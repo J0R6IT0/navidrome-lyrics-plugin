@@ -3,8 +3,8 @@ use crate::{
     providers::{
         error::ProviderResult,
         services::{
-            AppleMusic, BiniLyrics, Genie, KuGou, LrcRed, Lrclib, Lrcmux, LyricsOvh, NetEase,
-            QQMusic, Stixoi, Unison,
+            AppleMusic, BiniLyrics, Deezer, Genie, KuGou, LrcRed, Lrclib, Lrcmux, LyricsOvh,
+            NetEase, QQMusic, Stixoi, Unison,
         },
     },
     types::{Lyrics, LyricsKind, LyricsTrack, TrackKind},
@@ -17,7 +17,6 @@ mod registry;
 mod services;
 
 pub use registry::ProviderRegistry;
-use crate::providers::services::Deezer;
 
 const USER_AGENT: &str = concat!(
     "navidrome-lyrics-plugin/",
